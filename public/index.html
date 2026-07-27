@@ -28,8 +28,8 @@
         
         .hand { display: flex; gap: 6px; justify-content: center; }
 
-        /* 게임 종료 오버레이 스타일 */
-        .game-over-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.92); border-radius: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px; z-index: 10; padding: 20px; text-align: center; }
+        /* 게임 종료 오버레이 스타일 (전체 기록 수용 가능하도록 변경) */
+        .game-over-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.96); border-radius: 10px; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; gap: 10px; z-index: 10; padding: 20px; text-align: center; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -50,10 +50,14 @@
         </div>
 
         <div class="board" id="game-board-area">
-            <!-- 게임 종료 시 나타나는 결과 오버레이 -->
+            <!-- 게임 종료 시 나타나는 결과 오버레이 (승리 메시지 밑에 전체 기록 표시) -->
             <div id="game-over-box" class="game-over-overlay hidden">
-                <h2 id="game-over-title" style="font-size: 1.5rem; color: var(--primary);">게임 종료</h2>
-                <p id="game-over-desc" style="font-size: 0.9rem; color: #94a3b8;"></p>
+                <h2 id="game-over-title" style="font-size: 1.4rem; color: var(--primary); margin-top: 5px;">게임 종료</h2>
+                <p id="game-over-desc" style="font-size: 0.85rem; color: #94a3b8;"></p>
+                
+                <div style="font-size: 0.8rem; color: #f8fafc; font-weight: bold; margin-top: 5px; text-align: left; width: 100%;">전체 턴 기록 (상대방 카드 공개)</div>
+                <div id="game-over-history" style="display: flex; gap: 6px; overflow-x: auto; width: 100%; padding: 5px 0; justify-content: flex-start;"></div>
+
                 <button onclick="location.reload()" style="margin-top: 10px; padding: 6px 15px;">새 게임 시작하기</button>
             </div>
 
@@ -66,7 +70,7 @@
 
             <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
 
-            <!-- 중앙: 전턴에 냈던 카드 기록 (상대방 숫자도 투명도 없이 완전 공개) -->
+            <!-- 중앙: 전턴에 냈던 카드 기록 (게임 중에는 상대방 숫자가 절대 보이지 않음) -->
             <div style="font-size:0.8rem; color:#94a3b8; font-weight:bold; width: 100%; text-align: left;">이전 턴 기록</div>
             <div id="history-list" class="history-container">
                 <span style="font-size:0.8rem; color:#64748b;">아직 기록이 없습니다.</span>
@@ -97,7 +101,6 @@
     let currentRoom = null;
     let myLastSelectedCard = null;
 
-    // Web Audio API 효과음 재생 함수
     function playSound(type) {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -149,7 +152,7 @@
 
     socket.on('assignedRole', (role) => {
         myRole = role;
-        document.getElementById('role-text').innerText = `역할: 플레이어 ${role === 'p1' ? '1' : '2'}`;
+        document.getElementById('role-text',).innerText = `역할: 플레이어 ${role === 'p1' ? '1' : '2'}`;
     });
 
     socket.on('errorMsg', (msg) => { alert(msg); location.reload(); });
@@ -199,7 +202,7 @@
             mySlot.style.color = '#f8fafc';
         }
 
-        // 💡 이전 턴 기록 (상대방 카드 숫자도 완전히 공개)
+        // 💡 게임 중 이전 턴 기록 (상대방 숫자는 절대 보이지 않고 '?'로 표시)
         const historyList = document.getElementById('history-list');
         historyList.innerHTML = '';
         if (room.history.length === 0) {
@@ -224,7 +227,7 @@
                         ${index+1}턴: ${roundRes}
                     </div>
                     <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
-                        <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${oIsOdd ? '#fff':'#000'}; color:${oIsOdd?'#000':'#fff'}; font-weight:bold;" title="상대 카드">${oCard}</div>
+                        <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${oIsOdd ? '#fff':'#000'}; color:${oIsOdd?'#000':'#fff'}; font-weight:bold;" title="상대 카드">?</div>
                         <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${myIsOdd ? '#fff':'#000'}; color:${myIsOdd?'#000':'#fff'}; font-weight:bold;" title="내 카드">${myCard}</div>
                     </div>
                 `;
@@ -282,7 +285,7 @@
         document.getElementById('status-msg').innerText = `라운드 결과: ${resultText}`;
     });
 
-    // 💡 최종 승리 시 창(alert)을 띄우지 않고 게임 화면 내에 오버레이로 표시
+    // 💡 게임 종료 시 오버레이 내에 승리 메시지 밑으로 모든 카드가 숫자가 보이도록 히스토리 렌더링
     socket.on('gameOver', ({ winner, history }) => {
         const isGameWin = (winner === myRole);
         const isDraw = (winner === 'draw');
@@ -294,8 +297,37 @@
         const gameOverBox = document.getElementById('game-over-box');
         document.getElementById('game-over-title').innerText = finalTitle;
         document.getElementById('game-over-desc').innerText = finalDesc;
-        gameOverBox.classList.remove('hidden');
 
+        // 게임 종료 후 기록 컨테이너 채우기 (상대방 숫자 전면 공개)
+        const gameOverHistory = document.getElementById('game-over-history');
+        gameOverHistory.innerHTML = '';
+        history.forEach((h, index) => {
+            const myCard = (myRole === 'p1') ? h.p1Card : h.p2Card;
+            const oCard = (myRole === 'p1') ? h.p2Card : h.p1Card;
+            
+            const myIsOdd = (myCard % 2 !== 0);
+            const oIsOdd = (oCard % 2 !== 0);
+
+            let roundRes = "";
+            if (h.winner === myRole) roundRes = "<span style='color:#10b981'>승</span>";
+            else if (h.winner === null) roundRes = "<span style='color:#94a3b8'>무</span>";
+            else roundRes = "<span style='color:#ef4444'>패</span>";
+
+            const slot = document.createElement('div');
+            slot.className = 'history-slot';
+            slot.innerHTML = `
+                <div style="font-size:0.65rem; color:#94a3b8; margin-bottom:2px; font-weight:bold;">
+                    ${index+1}턴: ${roundRes}
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
+                    <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${oIsOdd ? '#fff':'#000'}; color:${oIsOdd?'#000':'#fff'}; font-weight:bold;" title="상대 카드">${oCard}</div>
+                    <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${myIsOdd ? '#fff':'#000'}; color:${myIsOdd?'#000':'#fff'}; font-weight:bold;" title="내 카드">${myCard}</div>
+                </div>
+            `;
+            gameOverHistory.appendChild(slot);
+        });
+
+        gameOverBox.classList.remove('hidden');
         myLastSelectedCard = null;
     });
 </script>
