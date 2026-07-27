@@ -1,119 +1,198 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
-
-app.use(express.static('public'));
-
-let rooms = {};
-
-io.on('connection', (socket) => {
-    console.log(`사용자 접속: ${socket.id}`);
-
-    socket.on('joinRoom', (roomCode) => {
-        if (!rooms[roomCode]) {
-            rooms[roomCode] = {
-                players: [],
-                hands: { p1: [1,2,3,4,5,6,7,8,9], p2: [1,2,3,4,5,6,7,8,9] },
-                selected: { p1: null, p2: null },
-                wins: { p1: 0, p2: 0 },
-                turn: null,
-                subStep: 1,
-                history: [] // 이전 턴들에 낸 카드 기록
-            };
-        }
-
-        const room = rooms[roomCode];
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>구룡투 실시간 온라인 대전</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --primary: #f59e0b; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
+        body { background-color: var(--bg); color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { width: 95%; max-width: 600px; background: var(--panel); border: 2px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; }
+        .lobby, .game-screen { display: flex; flex-direction: column; gap: 15px; }
+        .hidden { display: none !important; }
+        input { padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: white; font-size: 1rem; }
+        button { background: var(--primary); color: #000; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         
-        if (!room.players.includes(socket.id)) {
-            if (room.players.length >= 2) {
-                socket.emit('errorMsg', '방이 가득 찼습니다.');
-                return;
-            }
-            room.players.push(socket.id);
-        }
-
-        socket.join(roomCode);
-        socket.roomCode = roomCode;
+        /* 중앙 전투 및 이전 기록 필드 */
+        .board { background: #0f172a; border: 2px dashed var(--border); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .board-row { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: #94a3b8; }
         
-        const playerIndex = room.players.indexOf(socket.id);
-        socket.playerRole = playerIndex === 0 ? 'p1' : 'p2';
+        /* 이전 턴 나열 영역 */
+        .history-container { display: flex; gap: 8px; overflow-x: auto; padding: 5px 0; min-height: 50px; align-items: center; }
+        .history-slot { display: flex; flex-direction: column; gap: 4px; align-items: center; background: #1e293b; border: 1px solid var(--border); padding: 4px; border-radius: 6px; min-width: 35px; }
 
-        socket.emit('assignedRole', socket.playerRole);
+        .card { width: 35px; height: 50px; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.9rem; cursor: pointer; border: 2px solid #555; }
+        .card-odd { background: #f1f5f9; color: #0f172a; }
+        .card-even { background: #334155; color: #f8fafc; }
+        .card.disabled { opacity: 0.3; cursor: not-allowed; }
+        .card-slot { width: 35px; height: 50px; border: 2px solid var(--border); border-radius: 4px; display: flex; justify-content: center; align-items: center; background: #1e293b; font-weight: bold; font-size: 0.9rem; }
+        
+        .hand { display: flex; gap: 6px; justify-content: center; }
+    </style>
+</head>
+<body>
 
-        if (room.players.length === 2 && !room.turn) {
-            room.turn = Math.random() < 0.5 ? 'p1' : 'p2';
-            room.subStep = 1;
+<div class="container">
+    <h1>🐉 구룡투 실시간 온라인 대전</h1>
+
+    <!-- 로비 화면 -->
+    <div id="lobby-screen" class="lobby">
+        <p>함께 플레이할 방 코드를 입력하세요.</p>
+        <input type="text" id="room-input" placeholder="예: room123">
+        <button onclick="joinGame()">방 입장하기</button>
+    </div>
+
+    <!-- 게임 화면 -->
+    <div id="game-screen" class="game-screen hidden">
+        <div style="display:flex; justify-content:space-between; font-weight:bold;">
+            <span id="role-text" style="color:var(--primary);">역할: 대기중</span>
+            <span>스코어 - P1: <span id="p1-score">0</span>승 / P2: <span id="p2-score">0</span>승</span>
+        </div>
+
+        <!-- 중앙 영역 (현재 진행중인 카드 및 이전 턴 나열) -->
+        <div class="board">
+            <div style="font-size:0.8rem; color:#f59e0b; font-weight:bold;">진행 중인 턴</div>
+            <div class="board-row">
+                <span>상대방:</span>
+                <div id="slot-opponent" class="card-slot">?</div>
+            </div>
+            <div class="board-row">
+                <span>내 카드:</span>
+                <div id="slot-my" class="card-slot">-</div>
+            </div>
+
+            <hr style="border:0; border-top:1px solid var(--border); margin: 5px 0;">
+            
+            <div style="font-size:0.8rem; color:#94a3b8; font-weight:bold;">이전 턴들에 낸 카드 기록</div>
+            <div id="history-list" class="history-container">
+                <span style="font-size:0.8rem; color:#64748b;">아직 기록이 없습니다.</span>
+            </div>
+        </div>
+
+        <div id="status-msg" style="text-align:center; color:#94a3b8; font-size:0.95rem;">상대방을 기다리는 중입니다...</div>
+
+        <div>
+            <div style="font-size:0.85rem; margin-bottom:5px;">내 손패</div>
+            <div id="my-hand" class="hand"></div>
+        </div>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    let myRole = null;
+    let currentRoom = null;
+    let myLastSelected = '-';
+
+    function joinGame() {
+        const roomCode = document.getElementById('room-input').value.trim();
+        if (!roomCode) {
+            alert('방 코드를 입력해주세요.');
+            return;
         }
+        currentRoom = roomCode;
+        socket.emit('joinRoom', roomCode);
 
-        io.to(roomCode).emit('updateState', room);
+        document.getElementById('lobby-screen').classList.add('hidden');
+        document.getElementById('game-screen').classList.remove('hidden');
+    }
+
+    socket.on('assignedRole', (role) => {
+        myRole = role;
+        document.getElementById('role-text').innerText = `역할: 플레이어 ${role === 'p1' ? '1' : '2'}`;
     });
 
-    socket.on('selectCard', ({ roomCode, card }) => {
-        const room = rooms[roomCode];
-        if (!room) return;
+    socket.on('errorMsg', (msg) => {
+        alert(msg);
+        location.reload();
+    });
 
-        if (socket.playerRole !== room.turn) return;
+    socket.on('updateState', (room) => {
+        document.getElementById('p1-score').innerText = room.wins.p1;
+        document.getElementById('p2-score').innerText = room.wins.p2;
 
-        if (socket.playerRole === 'p1') {
-            room.selected.p1 = card;
-            room.hands.p1 = room.hands.p1.filter(c => c !== card);
+        const isP1 = (myRole === 'p1');
+        const myTurn = room.turn;
+        const isMyTurn = (myTurn === myRole);
+
+        const oppSubmitted = isP1 ? (room.selected.p2 !== null) : (room.selected.p1 !== null);
+        document.getElementById('slot-opponent').innerText = oppSubmitted ? '✓' : '?';
+        document.getElementById('slot-my').innerText = myLastSelected;
+
+        // 이전 턴 기록 나열 렌더링 (상대방 숫자는 숨기고 내 카드와 승패만 나열)
+        const historyList = document.getElementById('history-list');
+        historyList.innerHTML = '';
+        if (room.history.length === 0) {
+            historyList.innerHTML = '<span style="font-size:0.8rem; color:#64748b;">아직 기록이 없습니다.</span>';
         } else {
-            room.selected.p2 = card;
-            room.hands.p2 = room.hands.p2.filter(c => c !== card);
+            room.history.forEach((h, index) => {
+                const myCard = isP1 ? h.p1Card : h.p2Card;
+                const slot = document.createElement('div');
+                slot.className = 'history-slot';
+                slot.innerHTML = `
+                    <span style="font-size:0.7rem; color:#64748b;">${index+1}턴</span>
+                    <span style="font-size:0.7rem; color:#ef4444;">상대:?</span>
+                    <span style="font-size:0.7rem; color:#3b82f6;">내:${myCard}</span>
+                `;
+                historyList.appendChild(slot);
+            });
         }
 
-        if (room.subStep === 1) {
-            room.subStep = 2;
-            room.turn = (room.turn === 'p1') ? 'p2' : 'p1';
-            io.to(roomCode).emit('updateState', room);
-        } 
-        else if (room.subStep === 2) {
-            io.to(roomCode).emit('updateState', room);
+        // 내 손패 렌더링
+        const handContainer = document.getElementById('my-hand');
+        handContainer.innerHTML = '';
+        const myHandCards = room.hands[myRole];
 
-            const c1 = room.selected.p1;
-            const c2 = room.selected.p2;
-            let roundWinner = null;
+        for (let i = 1; i <= 9; i++) {
+            const card = document.createElement('div');
+            const isOdd = (i % 2 !== 0);
+            card.className = `card ${isOdd ? 'card-odd' : 'card-even'}`;
 
-            if (c1 === 1 && c2 === 9) roundWinner = 'p1';
-            else if (c2 === 1 && c1 === 9) roundWinner = 'p2';
-            else if (c1 > c2) roundWinner = 'p1';
-            else if (c2 > c1) roundWinner = 'p2';
-
-            if (roundWinner) room.wins[roundWinner]++;
-
-            // 이번 턴의 기록을 히스토리에 추가 (내 카드, 상대 카드를 철저히 본인 시점에 맞추기 위해 객체로 저장)
-            room.history.push({ p1Card: c1, p2Card: c2, winner: roundWinner });
-
-            io.to(roomCode).emit('roundResult', { winner: roundWinner });
-
-            setTimeout(() => {
-                if (room.wins.p1 >= 5 || room.wins.p2 >= 5) {
-                    io.to(roomCode).emit('gameOver', roundWinner);
-                    room.wins = { p1: 0, p2: 0 };
-                    room.hands = { p1: [1,2,3,4,5,6,7,8,9], p2: [1,2,3,4,5,6,7,8,9] };
-                    room.history = [];
+            if (myHandCards.includes(i)) {
+                card.innerText = i;
+                if (isMyTurn) {
+                    card.onclick = () => {
+                        myLastSelected = i;
+                        document.getElementById('slot-my').innerText = myLastSelected;
+                        socket.emit('selectCard', { roomCode: currentRoom, card: i });
+                    };
+                } else {
+                    card.className += ' disabled';
                 }
-                room.selected = { p1: null, p2: null };
-                room.subStep = 1;
-                room.turn = roundWinner ? roundWinner : (Math.random() < 0.5 ? 'p1' : 'p2');
-                io.to(roomCode).emit('updateState', room);
-            }, 3000);
+            } else {
+                card.className += ' disabled';
+                card.innerText = '-';
+            }
+            handContainer.appendChild(card);
+        }
+
+        const statusMsg = document.getElementById('status-msg');
+        if (room.players.length < 2) {
+            statusMsg.innerText = "상대방을 기다리는 중입니다...";
+        } else if (isMyTurn) {
+            statusMsg.innerText = room.subStep === 1 ? "당신이 [선공]입니다. 카드를 먼저 내세요." : "상대방이 먼저 낸 카드를 보고 대응할 차례입니다. 카드를 고르세요.";
+        } else {
+            statusMsg.innerText = "상대방이 생각 중입니다...";
         }
     });
 
-    socket.on('disconnect', () => {
-        if (socket.roomCode && rooms[socket.roomCode]) {
-            delete rooms[socket.roomCode];
-            io.to(socket.roomCode).emit('errorMsg', '상대방이 나갔습니다.');
+    socket.on('roundResult', ({ winner }) => {
+        let resultText = "무승부입니다!";
+        if (winner) {
+            const isWin = (winner === myRole);
+            resultText = isWin ? "🎉 이번 라운드 승리!" : "😢 이번 라운드 패배!";
         }
+        document.getElementById('status-msg').innerText = `라운드 결과: ${resultText}`;
     });
-});
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`서버 실행 중 (Port: ${PORT})`);
-});
+    socket.on('gameOver', (winner) => {
+        const isGameWin = (winner === myRole);
+        alert(isGameWin ? "🏆 최종 승리하셨습니다!" : "💀 패배하셨습니다...");
+        myLastSelected = '-';
+    });
+</script>
+
+</body>
+</html>
