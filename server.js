@@ -8,12 +8,11 @@ const io = new Server(server);
 
 app.use(express.static('public'));
 
-let rooms = {}; // 방 정보를 관리하는 객체
+let rooms = {};
 
 io.on('connection', (socket) => {
     console.log(`사용자 접속: ${socket.id}`);
 
-    // 방 생성 또는 참가
     socket.on('joinRoom', (roomCode) => {
         if (!rooms[roomCode]) {
             rooms[roomCode] = {
@@ -25,22 +24,27 @@ io.on('connection', (socket) => {
         }
 
         const room = rooms[roomCode];
-        if (room.players.length >= 2) {
-            socket.emit('errorMsg', '방이 가득 찼습니다.');
-            return;
+        
+        // 이미 방에 있는 사용자가 재접속한 경우가 아니라면 인원 체크
+        if (!room.players.includes(socket.id)) {
+            if (room.players.length >= 2) {
+                socket.emit('errorMsg', '방이 가득 찼습니다.');
+                return;
+            }
+            room.players.push(socket.id);
         }
 
-        room.players.push(socket.id);
         socket.join(roomCode);
         socket.roomCode = roomCode;
-        socket.playerRole = room.players.length === 1 ? 'p1' : 'p2';
+        
+        const playerIndex = room.players.indexOf(socket.id);
+        socket.playerRole = playerIndex === 0 ? 'p1' : 'p2';
 
         socket.emit('assignedRole', socket.playerRole);
         io.to(roomCode).emit('updateState', room);
-        console.log(`[${roomCode}] 플레이어 입장 (${socket.playerRole})`);
+        console.log(`[방: ${roomCode}] 플레이어 입장: ${socket.playerRole} (${socket.id})`);
     });
 
-    // 카드 선택 처리
     socket.on('selectCard', ({ roomCode, card }) => {
         const room = rooms[roomCode];
         if (!room) return;
@@ -52,6 +56,8 @@ io.on('connection', (socket) => {
             room.selected.p2 = card;
             room.hands.p2 = room.hands.p2.filter(c => c !== card);
         }
+
+        io.to(roomCode).emit('updateState', room);
 
         // 두 플레이어 모두 카드를 냈을 경우 승부 판정
         if (room.selected.p1 !== null && room.selected.p2 !== null) {
@@ -68,7 +74,6 @@ io.on('connection', (socket) => {
 
             io.to(roomCode).emit('roundResult', { c1, c2, winner: roundWinner, wins: room.wins });
 
-            // 3초 후 다음 턴 준비 또는 게임 초기화
             setTimeout(() => {
                 if (room.wins.p1 >= 5 || room.wins.p2 >= 5) {
                     io.to(roomCode).emit('gameOver', roundWinner);
@@ -79,8 +84,6 @@ io.on('connection', (socket) => {
                 io.to(roomCode).emit('updateState', room);
             }, 3000);
         }
-
-        io.to(roomCode).emit('updateState', room);
     });
 
     socket.on('disconnect', () => {
@@ -92,6 +95,7 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(3000, () => {
-    console.log('구룡투 실시간 웹게임 서버 실행 중: http://localhost:3000');
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`서버 실행 중 (Port: ${PORT})`);
 });
