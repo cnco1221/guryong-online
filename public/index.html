@@ -175,7 +175,7 @@
 
     socket.on('errorMsg', (msg) => { alert(msg); location.reload(); });
 
-    // 3초 카운트다운 함수 실행
+    // 3초 카운트다운 함수 실행 (화면 갱신 강제 트리거 포함)
     function startCountdown(onComplete) {
         const box = document.getElementById('countdown-box');
         const numElem = document.getElementById('countdown-num');
@@ -192,6 +192,8 @@
                 clearInterval(timer);
                 box.classList.add('hidden');
                 if (onComplete) onComplete();
+                // 카운트다운 종료 후 화면 즉시 갱신
+                socket.emit('joinRoom', currentRoom); 
             }
         }, 1000);
     }
@@ -273,10 +275,11 @@
             });
         }
 
-        const isReadyToPlay = (room.hands.p1 && room.hands.p2 && room.hands.p1.length > 0 && room.hands.p2.length > 0) || (room.players && room.players.length >= 2);
+        // 두 플레이어 모두 완전히 입장했는지 확인 (서버의 players 배열 혹은 양쪽 손패 상태 확인)
+        const isBothPlayersJoined = (room.players && room.players.length >= 2);
 
-        // 상대방이 들어와서 게임이 시작될 때 최초 1회 3초 카운트다운 실행
-        if (isReadyToPlay && !hasCountedDown) {
+        // 양쪽 다 들어왔을 때 최초 1회 3초 카운트다운 실행
+        if (isBothPlayersJoined && !hasCountedDown) {
             hasCountedDown = true;
             startCountdown();
         }
@@ -291,11 +294,9 @@
             card.className = `card ${isOdd ? 'card-odd' : 'card-even'}`;
 
             const alreadySubmitted = (room.selected[myRole] !== null);
-
-            // 카운트다운 중이거나 조건에 맞지 않으면 카드 클릭 불가
             const isCountingDown = !document.getElementById('countdown-box').classList.contains('hidden');
 
-            if (isGameOver || isCountingDown || !myHandCards.includes(i) || !isMyTurn || alreadySubmitted) {
+            if (isGameOver || isCountingDown || !isBothPlayersJoined || !myHandCards.includes(i) || !isMyTurn || alreadySubmitted) {
                 card.className += ' disabled';
                 if (!myHandCards.includes(i)) {
                     card.innerText = '-';
@@ -316,10 +317,10 @@
         const statusMsg = document.getElementById('status-msg');
         const isCountingDownActive = !document.getElementById('countdown-box').classList.contains('hidden');
 
-        if (!isReadyToPlay) {
-            statusMsg.innerText = "상대방을 기다리는 중입니다...";
+        if (!isBothPlayersJoined) {
+            statusMsg.innerText = "상대방이 들어오기를 기다리는 중입니다...";
         } else if (isCountingDownActive) {
-            statusMsg.innerText = "게임 시작 전 준비 중...";
+            statusMsg.innerText = "상대방이 입장했습니다! 게임 시작 준비 중...";
         } else if (alreadySubmitted) {
             statusMsg.innerText = "카드를 제출했습니다. 결과를 기다리는 중...";
         } else if (isMyTurn) {
