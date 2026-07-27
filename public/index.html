@@ -97,7 +97,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver1</div>
+<div class="version-badge">ver.2</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -270,14 +270,19 @@
         }
 
         const statusMsg = document.getElementById('status-msg');
-        if (room.players.length < 2) {
+        // room.players 배열 길이 대신 실제 방 상태 점검 (두 명 모두 들어왔는지 확인)
+        const isReadyToPlay = (room.hands.p1 && room.hands.p2 && room.hands.p1.length > 0 && room.hands.p2.length > 0) || (room.players && room.players.length >= 2);
+
+        if (!isReadyToPlay) {
             statusMsg.innerText = "상대방을 기다리는 중입니다...";
         } else if (alreadySubmitted) {
             statusMsg.innerText = "카드를 제출했습니다. 결과를 기다리는 중...";
         } else if (isMyTurn) {
-            statusMsg.innerText = room.subStep === 1 ? "당신이 [선공]입니다. 카드를 먼저 내세요." : "상대방이 먼저 낸 카드의 색상을 보고 대응할 차례입니다.";
+            // 선공/후공 문구 명시
+            statusMsg.innerText = room.subStep === 1 ? "[선공] 당신이 선공입니다. 카드를 먼저 내세요." : "[선공] 상대방이 먼저 낸 카드의 색상을 보고 대응할 차례입니다.";
         } else {
-            statusMsg.innerText = "상대방이 생각 중입니다...";
+            // 후공일 때 대기 상태 문구 명시
+            statusMsg.innerText = "[후공] 상대방이 먼저 카드를 내는 중입니다. 잠시 기다려주세요...";
         }
     });
 
