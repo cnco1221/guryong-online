@@ -83,12 +83,18 @@ io.on('connection', (socket) => {
             else if (c2 === 1 && c1 === 9) roundWinner = 'p2';
             else if (c1 > c2) roundWinner = 'p1';
             else if (c2 > c1) roundWinner = 'p2';
+            else {
+                // 비겼을 경우 기존 선공 유지 (현재 turn은 subStep 2에서 교체되었으므로 직전 선공은 반대 플레이어)
+                roundWinner = (room.turn === 'p1') ? 'p2' : 'p1';
+            }
 
-            if (roundWinner) room.wins[roundWinner]++;
+            if (c1 !== c2) {
+                room.wins[roundWinner]++;
+            }
 
-            room.history.push({ p1Card: c1, p2Card: c2, winner: roundWinner });
+            room.history.push({ p1Card: c1, p2Card: c2, winner: (c1 === c2) ? null : roundWinner });
 
-            io.to(roomCode).emit('roundResult', { winner: roundWinner });
+            io.to(roomCode).emit('roundResult', { winner: (c1 === c2) ? null : roundWinner });
 
             setTimeout(() => {
                 if (room.wins.p1 >= 5 || room.wins.p2 >= 5) {
@@ -96,10 +102,13 @@ io.on('connection', (socket) => {
                     room.wins = { p1: 0, p2: 0 };
                     room.hands = { p1: [1,2,3,4,5,6,7,8,9], p2: [1,2,3,4,5,6,7,8,9] };
                     room.history = [];
+                    room.turn = Math.random() < 0.5 ? 'p1' : 'p2';
+                } else {
+                    // 무승부 혹은 승리 시 다음 턴 선공 설정 (비겼거나 이긴 사람이 다음 선공)
+                    room.turn = roundWinner;
                 }
                 room.selected = { p1: null, p2: null };
                 room.subStep = 1;
-                room.turn = roundWinner ? roundWinner : (Math.random() < 0.5 ? 'p1' : 'p2');
                 io.to(roomCode).emit('updateState', room);
             }, 3000);
         }
