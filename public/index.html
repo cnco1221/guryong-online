@@ -31,12 +31,10 @@
         
         .hand { display: flex; gap: 6px; justify-content: center; }
 
-        /* 카운트다운 오버레이 스타일 */
         .countdown-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.92); border-radius: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px; z-index: 20; text-align: center; }
         .countdown-number { font-size: 4rem; font-weight: bold; color: var(--primary); animation: popScale 1s infinite; }
         @keyframes popScale { 0% { transform: scale(0.8); opacity: 0.5; } 50% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(0.8); opacity: 0.5; } }
 
-        /* 게임 종료 오버레이 스타일 */
         .game-over-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.96); border-radius: 10px; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; gap: 10px; z-index: 10; padding: 20px; text-align: center; overflow-y: auto; }
     </style>
 </head>
@@ -58,13 +56,11 @@
         </div>
 
         <div class="board" id="game-board-area">
-            <!-- 카운트다운 오버레이 -->
             <div id="countdown-box" class="countdown-overlay hidden">
                 <div id="countdown-text" style="font-size: 1.2rem; font-weight: bold; color: #f8fafc;">상대방이 입장했습니다!</div>
                 <div id="countdown-num" class="countdown-number">3</div>
             </div>
 
-            <!-- 게임 종료 시 나타나는 결과 오버레이 -->
             <div id="game-over-box" class="game-over-overlay hidden">
                 <h2 id="game-over-title" style="font-size: 1.4rem; color: var(--primary); margin-top: 5px;">게임 종료</h2>
                 <p id="game-over-desc" style="font-size: 0.85rem; color: #94a3b8;"></p>
@@ -75,7 +71,6 @@
                 <button onclick="location.reload()" style="margin-top: 10px; padding: 6px 15px;">새 게임 시작하기</button>
             </div>
 
-            <!-- 상대방 영역 (위) -->
             <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
                 <span style="font-size: 0.85rem; color: #94a3b8;">상대방 낸 카드</span>
                 <div id="slot-opponent" class="card-slot">-</div>
@@ -84,7 +79,6 @@
 
             <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
 
-            <!-- 중앙: 전턴에 냈던 카드 기록 -->
             <div style="font-size:0.8rem; color:#94a3b8; font-weight:bold; width: 100%; text-align: left;">이전 턴 기록</div>
             <div id="history-list" class="history-container">
                 <span style="font-size:0.8rem; color:#64748b;">아직 기록이 없습니다.</span>
@@ -92,7 +86,6 @@
 
             <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
 
-            <!-- 내 영역 (아래) -->
             <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
                 <div id="slot-my" class="card-slot">-</div>
                 <span style="font-size: 0.85rem; color: #94a3b8;">내가 낸 카드</span>
@@ -108,7 +101,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.8</div>
+<div class="version-badge">ver.10</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -119,6 +112,9 @@
     let isGameOver = false;
     let hasCountedDown = false;
     let isCountingDownActive = false;
+    
+    // 라운드별 선공 여부를 클라이언트 측에서 고정 관리하기 위한 변수
+    let roundInitialTurn = null; 
 
     function playSound(type) {
         try {
@@ -218,16 +214,20 @@
         document.getElementById('p2-score').innerText = room.wins.p2;
 
         const isP1 = (myRole === 'p1');
-        
-        // 엄격한 선공/후공 판정 (room.turn이 내 역할과 일치하는지 여부)
-        const isMyTurn = (room.turn === myRole);
+        const oppRole = isP1 ? 'p2' : 'p1';
+
+        // 라운드가 새로 시작될 때(양측 카드가 비어있을 때) 이번 라운드 시작 시점의 선공을 고정 기록
+        if (room.selected.p1 === null && room.selected.p2 === null) {
+            roundInitialTurn = room.turn;
+        }
+
+        const isOriginalTurn = (roundInitialTurn === myRole);
         const alreadySubmitted = (room.selected[myRole] !== null);
 
         if (room.selected[myRole] === null) {
             myLastSelectedCard = null;
         }
 
-        const oppRole = isP1 ? 'p2' : 'p1';
         const oppHandCards = room.hands[oppRole];
         let oppWhiteCount = oppHandCards.filter(c => c % 2 !== 0).length;
         let oppBlackCount = oppHandCards.filter(c => c % 2 === 0).length;
@@ -304,13 +304,13 @@
         handContainer.innerHTML = '';
         const myHandCards = room.hands[myRole];
 
+        // 행동 가능 여부: 선공이거나, 후공인데 상대방이 이미 카드를 낸 경우
+        const canActNow = isOriginalTurn || (room.selected[oppRole] !== null);
+
         for (let i = 1; i <= 9; i++) {
             const card = document.createElement('div');
             const isOdd = (i % 2 !== 0);
             card.className = `card ${isOdd ? 'card-odd' : 'card-even'}`;
-
-            // 선공이 아닐 때(후공일 때)는 상대방이 먼저 카드를 내기 전까지 선택 불가
-            const canActNow = isMyTurn || (room.selected[oppRole] !== null);
 
             if (isGameOver || isCountingDownActive || !isBothPlayersJoined || !myHandCards.includes(i) || !canActNow || alreadySubmitted) {
                 card.className += ' disabled';
@@ -332,8 +332,8 @@
 
         const statusMsg = document.getElementById('status-msg');
         
-        // 선공/후공에 따른 정확한 문구 분리 매핑 검수 완료
-        let turnText = isMyTurn ? "선공입니다. 먼저 선택하세요." : "후공입니다. 대응하세요.";
+        // 핵심 보장: 후공 플레이어는 상대가 카드를 내서 내 차례가 활성화되더라도 문구가 절대 "선공"으로 바뀌지 않고 "후공"으로 고정됨
+        let turnText = isOriginalTurn ? "선공입니다. 먼저 선택하세요." : "후공입니다. 대응하세요.";
 
         if (!isBothPlayersJoined) {
             statusMsg.innerText = "상대방이 들어오기를 기다리는 중입니다...";
