@@ -14,18 +14,17 @@
         input { padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: white; font-size: 1rem; }
         button { background: var(--primary); color: #000; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         
-        /* 중앙 전투 및 이전 기록 필드 */
         .board { background: #0f172a; border: 2px dashed var(--border); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
         .board-row { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: #94a3b8; }
         
-        /* 이전 턴 나열 영역 */
-        .history-container { display: flex; gap: 8px; overflow-x: auto; padding: 5px 0; min-height: 50px; align-items: center; }
-        .history-slot { display: flex; flex-direction: column; gap: 4px; align-items: center; background: #1e293b; border: 1px solid var(--border); padding: 4px; border-radius: 6px; min-width: 35px; }
+        .history-container { display: flex; gap: 8px; overflow-x: auto; padding: 5px 0; min-height: 55px; align-items: center; }
+        .history-slot { display: flex; flex-direction: column; gap: 3px; align-items: center; background: #1e293b; border: 1px solid var(--border); padding: 4px; border-radius: 6px; min-width: 40px; }
 
         .card { width: 35px; height: 50px; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.9rem; cursor: pointer; border: 2px solid #555; }
-        .card-odd { background: #f1f5f9; color: #0f172a; }
-        .card-even { background: #334155; color: #f8fafc; }
+        .card-odd { background: #ffffff; color: #0f172a; } /* 홀수: 흰색 */
+        .card-even { background: #000000; color: #ffffff; border-color: #555; } /* 짝수: 검정색 */
         .card.disabled { opacity: 0.3; cursor: not-allowed; }
+        
         .card-slot { width: 35px; height: 50px; border: 2px solid var(--border); border-radius: 4px; display: flex; justify-content: center; align-items: center; background: #1e293b; font-weight: bold; font-size: 0.9rem; }
         
         .hand { display: flex; gap: 6px; justify-content: center; }
@@ -36,26 +35,23 @@
 <div class="container">
     <h1>🐉 구룡투 실시간 온라인 대전</h1>
 
-    <!-- 로비 화면 -->
     <div id="lobby-screen" class="lobby">
         <p>함께 플레이할 방 코드를 입력하세요.</p>
         <input type="text" id="room-input" placeholder="예: room123">
         <button onclick="joinGame()">방 입장하기</button>
     </div>
 
-    <!-- 게임 화면 -->
     <div id="game-screen" class="game-screen hidden">
         <div style="display:flex; justify-content:space-between; font-weight:bold;">
             <span id="role-text" style="color:var(--primary);">역할: 대기중</span>
             <span>스코어 - P1: <span id="p1-score">0</span>승 / P2: <span id="p2-score">0</span>승</span>
         </div>
 
-        <!-- 중앙 영역 (현재 진행중인 카드 및 이전 턴 나열) -->
         <div class="board">
             <div style="font-size:0.8rem; color:#f59e0b; font-weight:bold;">진행 중인 턴</div>
             <div class="board-row">
                 <span>상대방:</span>
-                <div id="slot-opponent" class="card-slot">?</div>
+                <div id="slot-opponent" class="card-slot">-</div>
             </div>
             <div class="board-row">
                 <span>내 카드:</span>
@@ -73,7 +69,7 @@
         <div id="status-msg" style="text-align:center; color:#94a3b8; font-size:0.95rem;">상대방을 기다리는 중입니다...</div>
 
         <div>
-            <div style="font-size:0.85rem; margin-bottom:5px;">내 손패</div>
+            <div style="font-size:0.85rem; margin-bottom:5px;">내 손패 (홀수: 흰색 / 짝수: 검정색)</div>
             <div id="my-hand" class="hand"></div>
         </div>
     </div>
@@ -84,7 +80,7 @@
     const socket = io();
     let myRole = null;
     let currentRoom = null;
-    let myLastSelected = '-';
+    let myLastSelectedCard = null;
 
     function joinGame() {
         const roomCode = document.getElementById('room-input').value.trim();
@@ -117,11 +113,38 @@
         const myTurn = room.turn;
         const isMyTurn = (myTurn === myRole);
 
-        const oppSubmitted = isP1 ? (room.selected.p2 !== null) : (room.selected.p1 !== null);
-        document.getElementById('slot-opponent').innerText = oppSubmitted ? '✓' : '?';
-        document.getElementById('slot-my').innerText = myLastSelected;
+        // 상대방이 낸 카드 카드 객체 추출
+        const oppCard = isP1 ? room.selected.p2 : room.selected.p1;
+        const oppSlot = document.getElementById('slot-opponent');
+        oppSlot.className = 'card-slot';
+        
+        if (oppCard !== null) {
+            // 숫자는 숨기고 색상(홀수:흰색, 짝수:검정색)만 표시
+            const isOdd = (oppCard % 2 !== 0);
+            oppSlot.innerText = '?';
+            oppSlot.style.backgroundColor = isOdd ? '#ffffff' : '#000000';
+            oppSlot.style.color = isOdd ? '#0f172a' : '#ffffff';
+        } else {
+            oppSlot.innerText = '-';
+            oppSlot.style.backgroundColor = '#1e293b';
+            oppSlot.style.color = '#f8fafc';
+        }
 
-        // 이전 턴 기록 나열 렌더링 (상대방 숫자는 숨기고 내 카드와 승패만 나열)
+        // 내 카드 슬롯 표시
+        const mySlot = document.getElementById('slot-my');
+        mySlot.className = 'card-slot';
+        if (myLastSelectedCard !== null) {
+            const isOdd = (myLastSelectedCard % 2 !== 0);
+            mySlot.innerText = myLastSelectedCard;
+            mySlot.style.backgroundColor = isOdd ? '#ffffff' : '#000000';
+            mySlot.style.color = isOdd ? '#0f172a' : '#ffffff';
+        } else {
+            mySlot.innerText = '-';
+            mySlot.style.backgroundColor = '#1e293b';
+            mySlot.style.color = '#f8fafc';
+        }
+
+        // 이전 턴 기록 (상대방 카드는 숫자를 숨기고 색상 블록만 표시)
         const historyList = document.getElementById('history-list');
         historyList.innerHTML = '';
         if (room.history.length === 0) {
@@ -129,12 +152,19 @@
         } else {
             room.history.forEach((h, index) => {
                 const myCard = isP1 ? h.p1Card : h.p2Card;
+                const oCard = isP1 ? h.p2Card : h.p1Card;
+                
+                const myIsOdd = (myCard % 2 !== 0);
+                const oIsOdd = (oCard % 2 !== 0);
+
                 const slot = document.createElement('div');
                 slot.className = 'history-slot';
                 slot.innerHTML = `
-                    <span style="font-size:0.7rem; color:#64748b;">${index+1}턴</span>
-                    <span style="font-size:0.7rem; color:#ef4444;">상대:?</span>
-                    <span style="font-size:0.7rem; color:#3b82f6;">내:${myCard}</span>
+                    <span style="font-size:0.65rem; color:#64748b;">${index+1}턴</span>
+                    <div style="display:flex; gap:3px;">
+                        <span style="font-size:0.6rem; padding:1px 3px; border-radius:2px; background:${oIsOdd ? '#fff':'#000'}; color:${oIsOdd?'#000':'#fff'};">상대(?)</span>
+                        <span style="font-size:0.6rem; padding:1px 3px; border-radius:2px; background:${myIsOdd ? '#fff':'#000'}; color:${myIsOdd?'#000':'#fff'};">내(${myCard})</span>
+                    </div>
                 `;
                 historyList.appendChild(slot);
             });
@@ -154,8 +184,7 @@
                 card.innerText = i;
                 if (isMyTurn) {
                     card.onclick = () => {
-                        myLastSelected = i;
-                        document.getElementById('slot-my').innerText = myLastSelected;
+                        myLastSelectedCard = i;
                         socket.emit('selectCard', { roomCode: currentRoom, card: i });
                     };
                 } else {
@@ -164,6 +193,7 @@
             } else {
                 card.className += ' disabled';
                 card.innerText = '-';
+                card.style.backgroundColor = '#1e293b';
             }
             handContainer.appendChild(card);
         }
@@ -172,7 +202,7 @@
         if (room.players.length < 2) {
             statusMsg.innerText = "상대방을 기다리는 중입니다...";
         } else if (isMyTurn) {
-            statusMsg.innerText = room.subStep === 1 ? "당신이 [선공]입니다. 카드를 먼저 내세요." : "상대방이 먼저 낸 카드를 보고 대응할 차례입니다. 카드를 고르세요.";
+            statusMsg.innerText = room.subStep === 1 ? "당신이 [선공]입니다. 카드를 먼저 내세요." : "상대방이 먼저 낸 카드의 색상을 보고 대응할 차례입니다.";
         } else {
             statusMsg.innerText = "상대방이 생각 중입니다...";
         }
@@ -190,7 +220,7 @@
     socket.on('gameOver', (winner) => {
         const isGameWin = (winner === myRole);
         alert(isGameWin ? "🏆 최종 승리하셨습니다!" : "💀 패배하셨습니다...");
-        myLastSelected = '-';
+        myLastSelectedCard = null;
     });
 </script>
 
