@@ -108,7 +108,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.4</div>
+<div class="version-badge">ver.5</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -118,7 +118,7 @@
     let myLastSelectedCard = null;
     let isGameOver = false;
     let hasCountedDown = false;
-    let lastRoundResultText = "";
+    let roundResultText = "";
 
     function playSound(type) {
         try {
@@ -304,6 +304,7 @@
             } else {
                 card.innerText = i;
                 card.onclick = () => {
+                    roundResultText = "";
                     myLastSelectedCard = i;
                     socket.emit('selectCard', { roomCode: currentRoom, card: i });
                 };
@@ -316,18 +317,17 @@
 
         let turnText = "";
         if (isMyTurn) {
-            turnText = room.subStep === 1 ? "[선공] 당신이 선공입니다. 카드를 먼저 내세요." : "[선공] 상대방이 먼저 낸 카드의 색상을 보고 대응할 차례입니다.";
+            turnText = room.subStep === 1 ? "[선공] 선공" : "[선공] 선공";
         } else {
-            turnText = "[후공] 상대방이 먼저 카드를 내는 중입니다. 잠시 기다려주세요...";
+            turnText = "[후공] 후공";
         }
 
         if (!isBothPlayersJoined) {
             statusMsg.innerText = "상대방이 들어오기를 기다리는 중입니다...";
         } else if (isCountingDownActive) {
             statusMsg.innerText = "상대방이 입장했습니다! 게임 시작 준비 중...";
-        } else if (lastRoundResultText) {
-            statusMsg.innerText = `${lastRoundResultText} | ${turnText}`;
-            lastRoundResultText = ""; 
+        } else if (roundResultText) {
+            statusMsg.innerText = roundResultText;
         } else if (isCountingDownActive === false && hasCountedDown && room.history.length === 0 && room.selected.p1 === null && room.selected.p2 === null) {
             statusMsg.innerText = `카운트다운 완료! | ${turnText}`;
         } else if (alreadySubmitted) {
@@ -347,7 +347,7 @@
             resultText = "무승부! 선공권이 유지됩니다.";
             playSound('draw');
         }
-        lastRoundResultText = `라운드 결과: ${resultText}`;
+        roundResultText = `라운드 결과: ${resultText}`;
     });
 
     socket.on('gameOver', ({ winner, history }) => {
