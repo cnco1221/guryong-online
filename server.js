@@ -84,7 +84,7 @@ io.on('connection', (socket) => {
             else if (c1 > c2) roundWinner = 'p1';
             else if (c2 > c1) roundWinner = 'p2';
             else {
-                // 비겼을 경우 기존 선공 유지 (현재 turn은 subStep 2에서 교체되었으므로 직전 선공은 반대 플레이어)
+                // 비겼을 경우 기존 선공 유지
                 roundWinner = (room.turn === 'p1') ? 'p2' : 'p1';
             }
 
@@ -97,14 +97,28 @@ io.on('connection', (socket) => {
             io.to(roomCode).emit('roundResult', { winner: (c1 === c2) ? null : roundWinner });
 
             setTimeout(() => {
-                if (room.wins.p1 >= 5 || room.wins.p2 >= 5) {
-                    io.to(roomCode).emit('gameOver', roundWinner);
+                // 게임 종료 조건: 5승 달성 OR 9장 모두 소진
+                if (room.wins.p1 >= 5 || room.wins.p2 >= 5 || room.history.length >= 9) {
+                    let finalWinner = null;
+                    if (room.wins.p1 >= 5) {
+                        finalWinner = 'p1';
+                    } else if (room.wins.p2 >= 5) {
+                        finalWinner = 'p2';
+                    } else {
+                        // 9장 다 썼는데 5승이 안 나온 경우 승수 비교
+                        if (room.wins.p1 > room.wins.p2) finalWinner = 'p1';
+                        else if (room.wins.p2 > room.wins.p1) finalWinner = 'p2';
+                        else finalWinner = 'draw'; // 동점이면 무승부
+                    }
+
+                    // 게임 종료 시 전체 기록(history)을 함께 전달
+                    io.to(roomCode).emit('gameOver', { winner: finalWinner, history: room.history });
+                    
                     room.wins = { p1: 0, p2: 0 };
                     room.hands = { p1: [1,2,3,4,5,6,7,8,9], p2: [1,2,3,4,5,6,7,8,9] };
                     room.history = [];
                     room.turn = Math.random() < 0.5 ? 'p1' : 'p2';
                 } else {
-                    // 무승부 혹은 승리 시 다음 턴 선공 설정 (비겼거나 이긴 사람이 다음 선공)
                     room.turn = roundWinner;
                 }
                 room.selected = { p1: null, p2: null };
