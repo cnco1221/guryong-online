@@ -9,7 +9,6 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
         body { background-color: var(--bg); color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; position: relative; }
         
-        /* 💡 오른쪽 아래 구석에 ver1 추가 */
         .version-badge { position: absolute; bottom: 15px; right: 20px; font-size: 0.75rem; color: #64748b; font-weight: bold; }
 
         .container { width: 95%; max-width: 600px; background: var(--panel); border: 2px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; }
@@ -98,7 +97,6 @@
     </div>
 </div>
 
-<!-- 우측 하단 구석 버전 표기 -->
 <div class="version-badge">ver1</div>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -107,7 +105,7 @@
     let myRole = null;
     let currentRoom = null;
     let myLastSelectedCard = null;
-    let isGameOver = false; // 💡 게임 종료 여부 추적 플래그
+    let isGameOver = false;
 
     function playSound(type) {
         try {
@@ -251,8 +249,8 @@
             const isOdd = (i % 2 !== 0);
             card.className = `card ${isOdd ? 'card-odd' : 'card-even'}`;
 
-            // 💡 게임 종료 상태이거나, 이미 카드를 냈거나, 내 차례가 아니면 클릭 불가 처리
             const alreadySubmitted = (room.selected[myRole] !== null);
+
             if (isGameOver || !myHandCards.includes(i) || !isMyTurn || alreadySubmitted) {
                 card.className += ' disabled';
                 if (!myHandCards.includes(i)) {
@@ -297,7 +295,7 @@
     });
 
     socket.on('gameOver', ({ winner, history }) => {
-        isGameOver = true; // 💡 게임 종료 플래그 활성화로 손패 잠금
+        isGameOver = true;
         const isGameWin = (winner === myRole);
         const isDraw = (winner === 'draw');
         playSound(isGameWin ? 'win' : (isDraw ? 'draw' : 'lose'));
@@ -340,7 +338,6 @@
         gameOverBox.classList.remove('hidden');
         myLastSelectedCard = null;
 
-        // 💡 게임 종료 즉시 손패 전체 비활성화 스타일 적용
         document.querySelectorAll('.card').forEach(card => {
             card.classList.add('disabled');
         });
