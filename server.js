@@ -19,13 +19,15 @@ io.on('connection', (socket) => {
                 players: [],
                 hands: { p1: [1,2,3,4,5,6,7,8,9], p2: [1,2,3,4,5,6,7,8,9] },
                 selected: { p1: null, p2: null },
-                wins: { p1: 0, p2: 0 }
+                wins: { p1: 0, p2: 0 },
+                turn: null,
+                subStep: 1,
+                history: [] // 이전 턴들에 낸 카드 기록
             };
         }
 
         const room = rooms[roomCode];
         
-        // 이미 방에 있는 사용자가 재접속한 경우가 아니라면 인원 체크
         if (!room.players.includes(socket.id)) {
             if (room.players.length >= 2) {
                 socket.emit('errorMsg', '방이 가득 찼습니다.');
@@ -41,26 +43,37 @@ io.on('connection', (socket) => {
         socket.playerRole = playerIndex === 0 ? 'p1' : 'p2';
 
         socket.emit('assignedRole', socket.playerRole);
+
+        if (room.players.length === 2 && !room.turn) {
+            room.turn = Math.random() < 0.5 ? 'p1' : 'p2';
+            room.subStep = 1;
+        }
+
         io.to(roomCode).emit('updateState', room);
-        console.log(`[방: ${roomCode}] 플레이어 입장: ${socket.playerRole} (${socket.id})`);
     });
 
     socket.on('selectCard', ({ roomCode, card }) => {
         const room = rooms[roomCode];
         if (!room) return;
 
-        if (socket.playerRole === 'p1' && room.selected.p1 === null) {
+        if (socket.playerRole !== room.turn) return;
+
+        if (socket.playerRole === 'p1') {
             room.selected.p1 = card;
             room.hands.p1 = room.hands.p1.filter(c => c !== card);
-        } else if (socket.playerRole === 'p2' && room.selected.p2 === null) {
+        } else {
             room.selected.p2 = card;
             room.hands.p2 = room.hands.p2.filter(c => c !== card);
         }
 
-        io.to(roomCode).emit('updateState', room);
+        if (room.subStep === 1) {
+            room.subStep = 2;
+            room.turn = (room.turn === 'p1') ? 'p2' : 'p1';
+            io.to(roomCode).emit('updateState', room);
+        } 
+        else if (room.subStep === 2) {
+            io.to(roomCode).emit('updateState', room);
 
-        // 두 플레이어 모두 카드를 냈을 경우 승부 판정
-        if (room.selected.p1 !== null && room.selected.p2 !== null) {
             const c1 = room.selected.p1;
             const c2 = room.selected.p2;
             let roundWinner = null;
@@ -72,15 +85,21 @@ io.on('connection', (socket) => {
 
             if (roundWinner) room.wins[roundWinner]++;
 
-            io.to(roomCode).emit('roundResult', { c1, c2, winner: roundWinner, wins: room.wins });
+            // 이번 턴의 기록을 히스토리에 추가 (내 카드, 상대 카드를 철저히 본인 시점에 맞추기 위해 객체로 저장)
+            room.history.push({ p1Card: c1, p2Card: c2, winner: roundWinner });
+
+            io.to(roomCode).emit('roundResult', { winner: roundWinner });
 
             setTimeout(() => {
                 if (room.wins.p1 >= 5 || room.wins.p2 >= 5) {
                     io.to(roomCode).emit('gameOver', roundWinner);
                     room.wins = { p1: 0, p2: 0 };
                     room.hands = { p1: [1,2,3,4,5,6,7,8,9], p2: [1,2,3,4,5,6,7,8,9] };
+                    room.history = [];
                 }
                 room.selected = { p1: null, p2: null };
+                room.subStep = 1;
+                room.turn = roundWinner ? roundWinner : (Math.random() < 0.5 ? 'p1' : 'p2');
                 io.to(roomCode).emit('updateState', room);
             }, 3000);
         }
@@ -89,9 +108,8 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         if (socket.roomCode && rooms[socket.roomCode]) {
             delete rooms[socket.roomCode];
-            io.to(socket.roomCode).emit('errorMsg', '상대 플레이어가 나갔습니다.');
+            io.to(socket.roomCode).emit('errorMsg', '상대방이 나갔습니다.');
         }
-        console.log(`사용자 퇴장: ${socket.id}`);
     });
 });
 
