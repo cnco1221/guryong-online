@@ -22,7 +22,7 @@ io.on('connection', (socket) => {
                 wins: { p1: 0, p2: 0 },
                 turn: null,
                 subStep: 1,
-                history: [] // 이전 턴들에 낸 카드 기록
+                history: []
             };
         }
 
@@ -78,6 +78,7 @@ io.on('connection', (socket) => {
             const c2 = room.selected.p2;
             let roundWinner = null;
 
+            // 구룡투 규칙: 1은 9를 이긴다
             if (c1 === 1 && c2 === 9) roundWinner = 'p1';
             else if (c2 === 1 && c1 === 9) roundWinner = 'p2';
             else if (c1 > c2) roundWinner = 'p1';
@@ -85,7 +86,6 @@ io.on('connection', (socket) => {
 
             if (roundWinner) room.wins[roundWinner]++;
 
-            // 이번 턴의 기록을 히스토리에 추가 (내 카드, 상대 카드를 철저히 본인 시점에 맞추기 위해 객체로 저장)
             room.history.push({ p1Card: c1, p2Card: c2, winner: roundWinner });
 
             io.to(roomCode).emit('roundResult', { winner: roundWinner });
