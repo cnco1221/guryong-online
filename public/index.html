@@ -14,20 +14,20 @@
         input { padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: white; font-size: 1rem; }
         button { background: var(--primary); color: #000; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         
-        .board { background: #0f172a; border: 2px dashed var(--border); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
-        .board-row { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: #94a3b8; }
+        .board { background: #0f172a; border: 2px dashed var(--border); border-radius: 10px; padding: 15px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
         
-        .history-container { display: flex; gap: 8px; overflow-x: auto; padding: 5px 0; min-height: 55px; align-items: center; }
-        .history-slot { display: flex; flex-direction: column; gap: 3px; align-items: center; background: #1e293b; border: 1px solid var(--border); padding: 4px; border-radius: 6px; min-width: 40px; }
+        .history-container { display: flex; gap: 8px; overflow-x: auto; width: 100%; padding: 5px 0; min-height: 60px; align-items: center; justify-content: flex-start; }
+        .history-slot { display: flex; flex-direction: column; gap: 3px; align-items: center; background: #1e293b; border: 1px solid var(--border); padding: 5px 8px; border-radius: 6px; min-width: 55px; flex-shrink: 0; }
 
         .card { width: 35px; height: 50px; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.9rem; cursor: pointer; border: 2px solid #555; }
-        .card-odd { background: #ffffff; color: #0f172a; } /* 홀수: 흰색 */
+        .card-odd { background: #ffffff; color: #0f172a; } /* 홀수: 백색 */
         .card-even { background: #000000; color: #ffffff; border-color: #555; } /* 짝수: 검정색 */
         .card.disabled { opacity: 0.3; cursor: not-allowed; }
         
         .card-slot { width: 35px; height: 50px; border: 2px solid var(--border); border-radius: 4px; display: flex; justify-content: center; align-items: center; background: #1e293b; font-weight: bold; font-size: 0.9rem; }
         
         .hand { display: flex; gap: 6px; justify-content: center; }
+        .status-box { display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 0.85rem; color: #94a3b8; }
     </style>
 </head>
 <body>
@@ -48,28 +48,35 @@
         </div>
 
         <div class="board">
-            <div style="font-size:0.8rem; color:#f59e0b; font-weight:bold;">진행 중인 턴</div>
-            <div class="board-row">
-                <span>상대방:</span>
-                <div id="slot-opponent" class="card-slot">-</div>
+            <!-- 상대방 영역 (위) -->
+            <div class="status-box">
+                <span>상대방 낸 카드</span>
+                <span id="opp-hand-count" style="color:#f59e0b; font-weight:bold;">상대 남은 손패: 백색 5장, 검정 4장</span>
             </div>
-            <div class="board-row">
-                <span>내 카드:</span>
-                <div id="slot-my" class="card-slot">-</div>
-            </div>
+            <div id="slot-opponent" class="card-slot">-</div>
 
-            <hr style="border:0; border-top:1px solid var(--border); margin: 5px 0;">
-            
-            <div style="font-size:0.8rem; color:#94a3b8; font-weight:bold;">이전 턴들에 낸 카드 기록</div>
+            <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
+
+            <!-- 중앙: 전턴에 냈던 카드 기록 (왼쪽부터 오른쪽으로 나열) -->
+            <div style="font-size:0.8rem; color:#94a3b8; font-weight:bold; width: 100%; text-align: left;">이전 턴 기록 (왼쪽부터 진행)</div>
             <div id="history-list" class="history-container">
                 <span style="font-size:0.8rem; color:#64748b;">아직 기록이 없습니다.</span>
+            </div>
+
+            <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
+
+            <!-- 내 영역 (아래) -->
+            <div id="slot-my" class="card-slot">-</div>
+            <div class="status-box">
+                <span>내가 낸 카드</span>
+                <span>내 손패</span>
             </div>
         </div>
 
         <div id="status-msg" style="text-align:center; color:#94a3b8; font-size:0.95rem;">상대방을 기다리는 중입니다...</div>
 
         <div>
-            <div style="font-size:0.85rem; margin-bottom:5px;">내 손패 (홀수: 흰색 / 짝수: 검정색)</div>
+            <div style="font-size:0.85rem; margin-bottom:5px;">내 손패 (홀수: 백색 / 짝수: 검정색)</div>
             <div id="my-hand" class="hand"></div>
         </div>
     </div>
@@ -81,6 +88,54 @@
     let myRole = null;
     let currentRoom = null;
     let myLastSelectedCard = null;
+
+    // Web Audio API를 활용한 효과음 재생 함수
+    function playSound(type) {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            const now = ctx.currentTime;
+
+            if (type === 'win') {
+                // 승리 시 밝은 멜로디 (도-미-솔)
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, now); // C5
+                osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+                osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            } else if (type === 'lose') {
+                // 패배 시 낮은 멜로디 (솔-미-도)
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(392.00, now); // G4
+                osc.frequency.setValueAtTime(329.63, now + 0.12); // E4
+                osc.frequency.setValueAtTime(261.63, now + 0.24); // C4
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+                osc.start(now);
+                osc.stop(now + 0.45);
+            } else if (type === 'draw') {
+                // 무승부 시 단일음
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now); // A4
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+        } catch (e) {
+            console.log('Audio playback error:', e);
+        }
+    }
 
     function joinGame() {
         const roomCode = document.getElementById('room-input').value.trim();
@@ -113,13 +168,19 @@
         const myTurn = room.turn;
         const isMyTurn = (myTurn === myRole);
 
-        // 상대방이 낸 카드 카드 객체 추출
+        // 상대방 남은 손패 계산 (백색: 홀수, 검정색: 짝수)
+        const oppRole = isP1 ? 'p2' : 'p1';
+        const oppHandCards = room.hands[oppRole];
+        let oppWhiteCount = oppHandCards.filter(c => c % 2 !== 0).length;
+        let oppBlackCount = oppHandCards.filter(c => c % 2 === 0).length;
+        document.getElementById('opp-hand-count').innerText = `상대 남은 손패: 백색 ${oppWhiteCount}장, 검정 ${oppBlackCount}장`;
+
+        // 상대방이 낸 카드 카드 객체 추출 (위치: 위)
         const oppCard = isP1 ? room.selected.p2 : room.selected.p1;
         const oppSlot = document.getElementById('slot-opponent');
         oppSlot.className = 'card-slot';
         
         if (oppCard !== null) {
-            // 숫자는 숨기고 색상(홀수:흰색, 짝수:검정색)만 표시
             const isOdd = (oppCard % 2 !== 0);
             oppSlot.innerText = '?';
             oppSlot.style.backgroundColor = isOdd ? '#ffffff' : '#000000';
@@ -130,7 +191,7 @@
             oppSlot.style.color = '#f8fafc';
         }
 
-        // 내 카드 슬롯 표시
+        // 내 카드 슬롯 표시 (위치: 아래)
         const mySlot = document.getElementById('slot-my');
         mySlot.className = 'card-slot';
         if (myLastSelectedCard !== null) {
@@ -144,7 +205,7 @@
             mySlot.style.color = '#f8fafc';
         }
 
-        // 이전 턴 기록 (상대방 카드는 숫자를 숨기고 색상 블록만 표시)
+        // 이전 턴 기록 (중앙에 왼쪽부터 오른쪽으로 쭉 나열)
         const historyList = document.getElementById('history-list');
         historyList.innerHTML = '';
         if (room.history.length === 0) {
@@ -162,8 +223,8 @@
                 slot.innerHTML = `
                     <span style="font-size:0.65rem; color:#64748b;">${index+1}턴</span>
                     <div style="display:flex; gap:3px;">
-                        <span style="font-size:0.6rem; padding:1px 3px; border-radius:2px; background:${oIsOdd ? '#fff':'#000'}; color:${oIsOdd?'#000':'#fff'};">상대(?)</span>
-                        <span style="font-size:0.6rem; padding:1px 3px; border-radius:2px; background:${myIsOdd ? '#fff':'#000'}; color:${myIsOdd?'#000':'#fff'};">내(${myCard})</span>
+                        <span style="font-size:0.6rem; padding:1px 3px; border-radius:2px; background:${oIsOdd ? '#fff':'#000'}; color:${oIsOdd?'#000':'#fff'};" title="상대 카드">상대(?)</span>
+                        <span style="font-size:0.6rem; padding:1px 3px; border-radius:2px; background:${myIsOdd ? '#fff':'#000'}; color:${myIsOdd?'#000':'#fff'};" title="내 카드">내(${myCard})</span>
                     </div>
                 `;
                 historyList.appendChild(slot);
@@ -213,12 +274,17 @@
         if (winner) {
             const isWin = (winner === myRole);
             resultText = isWin ? "🎉 이번 라운드 승리!" : "😢 이번 라운드 패배!";
+            playSound(isWin ? 'win' : 'lose');
+        } else {
+            resultText = "무승부! 선공권이 유지됩니다.";
+            playSound('draw');
         }
         document.getElementById('status-msg').innerText = `라운드 결과: ${resultText}`;
     });
 
     socket.on('gameOver', (winner) => {
         const isGameWin = (winner === myRole);
+        playSound(isGameWin ? 'win' : 'lose');
         alert(isGameWin ? "🏆 최종 승리하셨습니다!" : "💀 패배하셨습니다...");
         myLastSelectedCard = null;
     });
