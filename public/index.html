@@ -328,7 +328,8 @@
         const statusMsg = document.getElementById('status-msg');
         const isCountingDownActive = !document.getElementById('countdown-box').classList.contains('hidden');
 
-        let turnText = isMyTurn ? "선공" : "후공";
+        // 요청하신 맞춤형 안내 문구 적용
+        let turnText = isMyTurn ? "선공입니다. 먼저 선택하세요." : "후공입니다. 대응하세요.";
 
         if (!isBothPlayersJoined) {
             statusMsg.innerText = "상대방이 들어오기를 기다리는 중입니다...";
