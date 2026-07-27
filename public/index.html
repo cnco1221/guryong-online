@@ -108,7 +108,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.5</div>
+<div class="version-badge">ver.4</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -118,7 +118,7 @@
     let myLastSelectedCard = null;
     let isGameOver = false;
     let hasCountedDown = false;
-    let roundResultText = "";
+    let roundResultText = ""; // 라운드 결과 직후에만 보여줄 임시 텍스트
 
     function playSound(type) {
         try {
@@ -304,6 +304,7 @@
             } else {
                 card.innerText = i;
                 card.onclick = () => {
+                    // 다음 턴에 카드를 조작할 수 있으므로 라운드 결과 문구 지우기
                     roundResultText = "";
                     myLastSelectedCard = i;
                     socket.emit('selectCard', { roomCode: currentRoom, card: i });
@@ -327,12 +328,14 @@
         } else if (isCountingDownActive) {
             statusMsg.innerText = "상대방이 입장했습니다! 게임 시작 준비 중...";
         } else if (roundResultText) {
+            // 라운드 결과가 도착한 직후에는 결과만 보여줌
             statusMsg.innerText = roundResultText;
         } else if (isCountingDownActive === false && hasCountedDown && room.history.length === 0 && room.selected.p1 === null && room.selected.p2 === null) {
             statusMsg.innerText = `카운트다운 완료! | ${turnText}`;
         } else if (alreadySubmitted) {
             statusMsg.innerText = "카드를 제출했습니다. 결과를 기다리는 중...";
         } else {
+            // 카드를 낼 수 있는 다음 턴에는 결과 문구가 제거되고 선/후공 문구만 출력
             statusMsg.innerText = turnText;
         }
     });
@@ -347,6 +350,7 @@
             resultText = "무승부! 선공권이 유지됩니다.";
             playSound('draw');
         }
+        // 나와 상대방이 카드를 내어 라운드가 끝난 직후의 결과 메시지 세팅
         roundResultText = `라운드 결과: ${resultText}`;
     });
 
