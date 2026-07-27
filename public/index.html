@@ -31,6 +31,11 @@
         
         .hand { display: flex; gap: 6px; justify-content: center; }
 
+        /* 카운트다운 오버레이 스타일 */
+        .countdown-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.92); border-radius: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px; z-index: 20; text-align: center; }
+        .countdown-number { font-size: 4rem; font-weight: bold; color: var(--primary); animation: popScale 1s infinite; }
+        @keyframes popScale { 0% { transform: scale(0.8); opacity: 0.5; } 50% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(0.8); opacity: 0.5; } }
+
         /* 게임 종료 오버레이 스타일 */
         .game-over-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.96); border-radius: 10px; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; gap: 10px; z-index: 10; padding: 20px; text-align: center; overflow-y: auto; }
     </style>
@@ -53,6 +58,12 @@
         </div>
 
         <div class="board" id="game-board-area">
+            <!-- 카운트다운 오버레이 -->
+            <div id="countdown-box" class="countdown-overlay hidden">
+                <div id="countdown-text" style="font-size: 1.2rem; font-weight: bold; color: #f8fafc;">상대방이 입장했습니다!</div>
+                <div id="countdown-num" class="countdown-number">3</div>
+            </div>
+
             <!-- 게임 종료 시 나타나는 결과 오버레이 -->
             <div id="game-over-box" class="game-over-overlay hidden">
                 <h2 id="game-over-title" style="font-size: 1.4rem; color: var(--primary); margin-top: 5px;">게임 종료</h2>
@@ -106,6 +117,7 @@
     let currentRoom = null;
     let myLastSelectedCard = null;
     let isGameOver = false;
+    let hasCountedDown = false; // 카운트다운 중복 실행 방지
 
     function playSound(type) {
         try {
@@ -162,6 +174,27 @@
     });
 
     socket.on('errorMsg', (msg) => { alert(msg); location.reload(); });
+
+    // 3초 카운트다운 함수 실행
+    function startCountdown(onComplete) {
+        const box = document.getElementById('countdown-box');
+        const numElem = document.getElementById('countdown-num');
+        box.classList.remove('hidden');
+        
+        let count = 3;
+        numElem.innerText = count;
+
+        const timer = setInterval(() => {
+            count--;
+            if (count > 0) {
+                numElem.innerText = count;
+            } else {
+                clearInterval(timer);
+                box.classList.add('hidden');
+                if (onComplete) onComplete();
+            }
+        }, 1000);
+    }
 
     socket.on('updateState', (room) => {
         document.getElementById('p1-score').innerText = room.wins.p1;
@@ -240,6 +273,14 @@
             });
         }
 
+        const isReadyToPlay = (room.hands.p1 && room.hands.p2 && room.hands.p1.length > 0 && room.hands.p2.length > 0) || (room.players && room.players.length >= 2);
+
+        // 상대방이 들어와서 게임이 시작될 때 최초 1회 3초 카운트다운 실행
+        if (isReadyToPlay && !hasCountedDown) {
+            hasCountedDown = true;
+            startCountdown();
+        }
+
         const handContainer = document.getElementById('my-hand');
         handContainer.innerHTML = '';
         const myHandCards = room.hands[myRole];
@@ -251,7 +292,10 @@
 
             const alreadySubmitted = (room.selected[myRole] !== null);
 
-            if (isGameOver || !myHandCards.includes(i) || !isMyTurn || alreadySubmitted) {
+            // 카운트다운 중이거나 조건에 맞지 않으면 카드 클릭 불가
+            const isCountingDown = !document.getElementById('countdown-box').classList.contains('hidden');
+
+            if (isGameOver || isCountingDown || !myHandCards.includes(i) || !isMyTurn || alreadySubmitted) {
                 card.className += ' disabled';
                 if (!myHandCards.includes(i)) {
                     card.innerText = '-';
@@ -270,18 +314,17 @@
         }
 
         const statusMsg = document.getElementById('status-msg');
-        // room.players 배열 길이 대신 실제 방 상태 점검 (두 명 모두 들어왔는지 확인)
-        const isReadyToPlay = (room.hands.p1 && room.hands.p2 && room.hands.p1.length > 0 && room.hands.p2.length > 0) || (room.players && room.players.length >= 2);
+        const isCountingDownActive = !document.getElementById('countdown-box').classList.contains('hidden');
 
         if (!isReadyToPlay) {
             statusMsg.innerText = "상대방을 기다리는 중입니다...";
+        } else if (isCountingDownActive) {
+            statusMsg.innerText = "게임 시작 전 준비 중...";
         } else if (alreadySubmitted) {
             statusMsg.innerText = "카드를 제출했습니다. 결과를 기다리는 중...";
         } else if (isMyTurn) {
-            // 선공/후공 문구 명시
             statusMsg.innerText = room.subStep === 1 ? "[선공] 당신이 선공입니다. 카드를 먼저 내세요." : "[선공] 상대방이 먼저 낸 카드의 색상을 보고 대응할 차례입니다.";
         } else {
-            // 후공일 때 대기 상태 문구 명시
             statusMsg.innerText = "[후공] 상대방이 먼저 카드를 내는 중입니다. 잠시 기다려주세요...";
         }
     });
