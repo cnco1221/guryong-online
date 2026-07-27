@@ -1,4 +1,4 @@
-const express = require('express');
+const express = require('http');
 const http = require('http');
 const { Server } = require('socket.io');
 
@@ -8,45 +8,46 @@ const io = new Server(server);
 
 app.use(express.static('public'));
 
-let rooms = {};
+const rooms = {};
 
 io.on('connection', (socket) => {
-    console.log(`사용자 접속: ${socket.id}`);
-
     socket.on('joinRoom', (roomCode) => {
+        socket.join(roomCode);
+
         if (!rooms[roomCode]) {
             rooms[roomCode] = {
                 players: [],
-                hands: { p1: [1,2,3,4,5,6,7,8,9], p2: [1,2,3,4,5,6,7,8,9] },
+                hands: {
+                    p1: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    p2: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+                },
                 selected: { p1: null, p2: null },
                 wins: { p1: 0, p2: 0 },
-                turn: null,
-                subStep: 1,
-                history: []
+                history: [],
+                turn: null, // 이번 판의 선공 (먼저 카드를 내야 하는 사람)
+                gameOver: false
             };
         }
 
         const room = rooms[roomCode];
-        
+
         if (!room.players.includes(socket.id)) {
-            if (room.players.length >= 2) {
-                socket.emit('errorMsg', '방이 가득 찼습니다.');
-                return;
+            if (room.players.length < 2) {
+                room.players.push(socket.id);
             }
-            room.players.push(socket.id);
         }
 
-        socket.join(roomCode);
-        socket.roomCode = roomCode;
-        
-        const playerIndex = room.players.indexOf(socket.id);
-        socket.playerRole = playerIndex === 0 ? 'p1' : 'p2';
+        const role = room.players[0] === socket.id ? 'p1' : (room.players[1] === socket.id ? 'p2' : null);
+        if (!role) {
+            socket.emit('errorMsg', '방이 꽉 찼습니다.');
+            return;
+        }
 
-        socket.emit('assignedRole', socket.playerRole);
+        socket.emit('assignedRole', role);
 
-        if (room.players.length === 2 && !room.turn) {
+        // 두 플레이어가 모두 입장하고 게임 시작 전인 경우 초기 선공 결정 (랜덤)
+        if (room.players.length === 2 && room.turn === null && !room.gameOver) {
             room.turn = Math.random() < 0.5 ? 'p1' : 'p2';
-            room.subStep = 1;
         }
 
         io.to(roomCode).emit('updateState', room);
@@ -54,89 +55,102 @@ io.on('connection', (socket) => {
 
     socket.on('selectCard', ({ roomCode, card }) => {
         const room = rooms[roomCode];
-        if (!room) return;
+        if (!room || room.gameOver) return;
 
-        if (socket.playerRole !== room.turn) return;
+        const role = room.players[0] === socket.id ? 'p1' : 'p2';
+        const oppRole = role === 'p1' ? 'p2' : 'p1';
 
-        if (socket.playerRole === 'p1') {
-            room.selected.p1 = card;
-            room.hands.p1 = room.hands.p1.filter(c => c !== card);
-        } else {
-            room.selected.p2 = card;
-            room.hands.p2 = room.hands.p2.filter(c => c !== card);
+        // 이미 냈거나 손패에 없는 카드면 무시
+        if (room.selected[role] !== null) return;
+        if (!room.hands[role].includes(card)) return;
+
+        // 선공/후공 규칙 검증: 선공이 아직 안 냈는데 후공이 먼저 내려 하는 경우 방지
+        if (room.selected[room.turn] === null && role !== room.turn) {
+            return; // 선공이 먼저 내야 함
         }
 
-        if (room.subStep === 1) {
-            room.subStep = 2;
-            room.turn = (room.turn === 'p1') ? 'p2' : 'p1';
-            io.to(roomCode).emit('updateState', room);
-        } 
-        else if (room.subStep === 2) {
-            io.to(roomCode).emit('updateState', room);
+        // 카드 선택 반영
+        room.selected[role] = card;
 
-            const c1 = room.selected.p1;
-            const c2 = room.selected.p2;
+        // 두 플레이어 모두 카드를 냈는지 확인 (라운드 정산)
+        if (room.selected.p1 !== null && room.selected.p2 !== null) {
+            const p1Card = room.selected.p1;
+            const p2Card = room.selected.p2;
+
+            // 손패에서 제거
+            room.hands.p1 = room.hands.p1.filter(c => c !== p1Card);
+            room.hands.p2 = room.hands.p2.filter(c => c !== p2Card);
+
             let roundWinner = null;
-
-            // 구룡투 규칙: 1은 9를 이긴다
-            if (c1 === 1 && c2 === 9) roundWinner = 'p1';
-            else if (c2 === 1 && c1 === 9) roundWinner = 'p2';
-            else if (c1 > c2) roundWinner = 'p1';
-            else if (c2 > c1) roundWinner = 'p2';
-            else {
-                // 비겼을 경우 기존 선공 유지
-                roundWinner = (room.turn === 'p1') ? 'p2' : 'p1';
+            if (p1Card > p2Card) {
+                // 단, 구룡투 특수 룰(9와 1 처리 등) 필요시 적용 가능하나 기본 대소 비교
+                if (!(p1Card === 9 && p2Card === 1)) {
+                    roundWinner = 'p1';
+                } else {
+                    roundWinner = 'p2'; // 9 vs 1 특수룰 예시 (필요시 조정)
+                }
+            } else if (p2Card > p1Card) {
+                if (!(p2Card === 9 && p1Card === 1)) {
+                    roundWinner = 'p2';
+                } else {
+                    roundWinner = 'p1';
+                }
             }
 
-            if (c1 !== c2) {
+            // 승점 반영
+            if (roundWinner) {
                 room.wins[roundWinner]++;
             }
 
-            room.history.push({ p1Card: c1, p2Card: c2, winner: (c1 === c2) ? null : roundWinner });
+            // 히스토리 기록 저장
+            room.history.push({
+                p1Card,
+                p2Card,
+                winner: roundWinner
+            });
 
-            io.to(roomCode).emit('roundResult', { winner: (c1 === c2) ? null : roundWinner });
+            io.to(roomCode).emit('roundResult', { winner: roundWinner });
 
-            setTimeout(() => {
-                // 게임 종료 조건: 5승 달성 OR 9장 모두 소진
-                if (room.wins.p1 >= 5 || room.wins.p2 >= 5 || room.history.length >= 9) {
-                    let finalWinner = null;
-                    if (room.wins.p1 >= 5) {
-                        finalWinner = 'p1';
-                    } else if (room.wins.p2 >= 5) {
-                        finalWinner = 'p2';
-                    } else {
-                        // 9장 다 썼는데 5승이 안 나온 경우 승수 비교
-                        if (room.wins.p1 > room.wins.p2) finalWinner = 'p1';
-                        else if (room.wins.p2 > room.wins.p1) finalWinner = 'p2';
-                        else finalWinner = 'draw'; // 동점이면 무승부
-                    }
+            // 게임 종료 조건 확인 (손패가 모두 소진되었거나 9라운드 완료)
+            if (room.history.length >= 9 || room.hands.p1.length === 0) {
+                room.gameOver = true;
+                let finalWinner = 'draw';
+                if (room.wins.p1 > room.wins.p2) finalWinner = 'p1';
+                else if (room.wins.p2 > room.wins.p1) finalWinner = 'p2';
 
-                    // 게임 종료 시 전체 기록(history)을 함께 전달
+                setTimeout(() => {
                     io.to(roomCode).emit('gameOver', { winner: finalWinner, history: room.history });
-                    
-                    room.wins = { p1: 0, p2: 0 };
-                    room.hands = { p1: [1,2,3,4,5,6,7,8,9], p2: [1,2,3,4,5,6,7,8,9] };
-                    room.history = [];
-                    room.turn = Math.random() < 0.5 ? 'p1' : 'p2';
-                } else {
+                }, 1000);
+            } else {
+                // 다음 턴 선공 설정: 이번 라운드 승리자, 비겼을 경우 기존 선공 유지
+                if (roundWinner) {
                     room.turn = roundWinner;
                 }
-                room.selected = { p1: null, p2: null };
-                room.subStep = 1;
-                io.to(roomCode).emit('updateState', room);
-            }, 3000);
+                // 선택 초기화 후 상태 전송
+                room.selected.p1 = null;
+                room.selected.p2 = null;
+            }
         }
+
+        io.to(roomCode).emit('updateState', room);
     });
 
     socket.on('disconnect', () => {
-        if (socket.roomCode && rooms[socket.roomCode]) {
-            delete rooms[socket.roomCode];
-            io.to(socket.roomCode).emit('errorMsg', '상대방이 나갔습니다.');
+        for (const roomCode in rooms) {
+            const room = rooms[roomCode];
+            const index = room.players.indexOf(socket.id);
+            if (index !== -1) {
+                room.players.splice(index, 1);
+                if (room.players.length === 0) {
+                    delete rooms[roomCode];
+                } else {
+                    io.to(roomCode).emit('errorMsg', '상대방이 나갔습니다.');
+                }
+            }
         }
     });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`서버 실행 중 (Port: ${PORT})`);
+server.listen(3000, () => {
+    console.log('Server running on port 3000');
 });
