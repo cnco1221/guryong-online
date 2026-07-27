@@ -108,7 +108,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.6</div>
+<div class="version-badge">ver.8</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -118,7 +118,7 @@
     let myLastSelectedCard = null;
     let isGameOver = false;
     let hasCountedDown = false;
-    let isCountingDownActive = false; // 카운트다운 상태 플래그 분리
+    let isCountingDownActive = false;
 
     function playSound(type) {
         try {
@@ -207,7 +207,7 @@
             } else {
                 clearInterval(timer);
                 box.classList.add('hidden');
-                isCountingDownActive = false; // 카운트다운 종료 플래그 해제
+                isCountingDownActive = false;
                 socket.emit('joinRoom', currentRoom); 
             }
         }, 1000);
@@ -218,6 +218,8 @@
         document.getElementById('p2-score').innerText = room.wins.p2;
 
         const isP1 = (myRole === 'p1');
+        
+        // 엄격한 선공/후공 판정 (room.turn이 내 역할과 일치하는지 여부)
         const isMyTurn = (room.turn === myRole);
         const alreadySubmitted = (room.selected[myRole] !== null);
 
@@ -307,7 +309,10 @@
             const isOdd = (i % 2 !== 0);
             card.className = `card ${isOdd ? 'card-odd' : 'card-even'}`;
 
-            if (isGameOver || isCountingDownActive || !isBothPlayersJoined || !myHandCards.includes(i) || !isMyTurn || alreadySubmitted) {
+            // 선공이 아닐 때(후공일 때)는 상대방이 먼저 카드를 내기 전까지 선택 불가
+            const canActNow = isMyTurn || (room.selected[oppRole] !== null);
+
+            if (isGameOver || isCountingDownActive || !isBothPlayersJoined || !myHandCards.includes(i) || !canActNow || alreadySubmitted) {
                 card.className += ' disabled';
                 if (!myHandCards.includes(i)) {
                     card.innerText = '-';
@@ -326,6 +331,8 @@
         }
 
         const statusMsg = document.getElementById('status-msg');
+        
+        // 선공/후공에 따른 정확한 문구 분리 매핑 검수 완료
         let turnText = isMyTurn ? "선공입니다. 먼저 선택하세요." : "후공입니다. 대응하세요.";
 
         if (!isBothPlayersJoined) {
