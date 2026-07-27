@@ -13,18 +13,24 @@
         .hidden { display: none !important; }
         input { padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: white; font-size: 1rem; }
         button { background: var(--primary); color: #000; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        .board { background: #0f172a; border: 2px dashed var(--border); border-radius: 10px; height: 150px; display: flex; justify-content: center; align-items: center; gap: 30px; font-size: 1.2rem; font-weight: bold; }
-        .hand { display: flex; gap: 8px; justify-content: center; }
+        
+        /* 중앙 전투 필드 (위: 상대 / 아래: 나) */
+        .board { background: #0f172a; border: 2px dashed var(--border); border-radius: 10px; height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px; padding: 10px; }
+        .board-row { display: flex; align-items: center; gap: 15px; font-size: 0.9rem; color: #94a3b8; }
+        
         .card { width: 45px; height: 65px; border-radius: 6px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 1.1rem; cursor: pointer; border: 2px solid #555; }
         .card-odd { background: #f1f5f9; color: #0f172a; }
         .card-even { background: #334155; color: #f8fafc; }
         .card.disabled { opacity: 0.3; cursor: not-allowed; }
+        .card-slot { width: 45px; height: 65px; border: 2px solid var(--border); border-radius: 6px; display: flex; justify-content: center; align-items: center; background: #1e293b; font-weight: bold; }
+        
+        .hand { display: flex; gap: 8px; justify-content: center; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>🐉 구룡투 온라인 대전</h1>
+    <h1>🐉 구룡투 실시간 온라인 대전</h1>
 
     <!-- 로비 화면 -->
     <div id="lobby-screen" class="lobby">
@@ -40,10 +46,16 @@
             <span>스코어 - P1: <span id="p1-score">0</span>승 / P2: <span id="p2-score">0</span>승</span>
         </div>
 
+        <!-- 중앙 전투 영역 (위: 상대방 슬롯 / 아래: 내 슬롯) -->
         <div class="board">
-            <div>P1: <span id="slot-p1">?</span></div>
-            <div>VS</div>
-            <div>P2: <span id="slot-p2">?</span></div>
+            <div class="board-row">
+                <span>상대방 낸 카드:</span>
+                <div id="slot-opponent" class="card-slot">?</div>
+            </div>
+            <div class="board-row">
+                <span>내가 낸 카드:</span>
+                <div id="slot-my" class="card-slot">-</div>
+            </div>
         </div>
 
         <div id="status-msg" style="text-align:center; color:#94a3b8; font-size:0.95rem;">상대방을 기다리는 중입니다...</div>
@@ -60,6 +72,7 @@
     const socket = io();
     let myRole = null;
     let currentRoom = null;
+    let myLastSelected = '-'; // 내가 낸 카드를 나만 볼 수 있도록 기록
 
     function joinGame() {
         const roomCode = document.getElementById('room-input').value.trim();
@@ -74,9 +87,9 @@
         document.getElementById('game-screen').classList.remove('hidden');
     }
 
-    socket.assignRole, socket.on('assignedRole', (role) => {
+    socket.on('assignedRole', (role) => {
         myRole = role;
-        document.getElementById('role-text').innerText = `역할: 플레이어 ${role === 'p1' ? '1 (백)' : '2 (흑)'}`;
+        document.getElementById('role-text').innerText = `역할: 플레이어 ${role === 'p1' ? '1' : '2'}`;
     });
 
     socket.on('errorMsg', (msg) => {
@@ -88,9 +101,15 @@
         document.getElementById('p1-score').innerText = room.wins.p1;
         document.getElementById('p2-score').innerText = room.wins.p2;
 
-        // 슬롯 상태 (상대방이 냈는지만 확인, 숫자는 비공개)
-        document.getElementById('slot-p1').innerText = room.selected.p1 !== null ? '✓' : '?';
-        document.getElementById('slot-p2').innerText = room.selected.p2 !== null ? '✓' : '?';
+        const isP1 = (myRole === 'p1');
+        const mySelected = isP1 ? room.selected.p1 : room.selected.p2;
+        const oppSelected = isP1 ? room.selected.p2 : room.selected.p1;
+
+        // 상대방 카드는 전 턴에 낸 카드든 현재 낸 카드든 절대 숫자를 보여주지 않고 물음표(?)로 처리
+        document.getElementById('slot-opponent').innerText = oppSelected !== null ? '✓' : '?';
+        
+        // 내 카드는 나만 볼 수 있게 표시
+        document.getElementById('slot-my').innerText = myLastSelected;
 
         // 내 손패 렌더링
         const handContainer = document.getElementById('my-hand');
@@ -105,6 +124,8 @@
             if (myHandCards.includes(i)) {
                 card.innerText = i;
                 card.onclick = () => {
+                    myLastSelected = i; // 내가 낸 숫자 저장
+                    document.getElementById('slot-my').innerText = myLastSelected;
                     socket.emit('selectCard', { roomCode: currentRoom, card: i });
                 };
             } else {
@@ -114,7 +135,6 @@
             handContainer.appendChild(card);
         }
 
-        const mySelected = room.selected[myRole];
         const statusMsg = document.getElementById('status-msg');
         if (mySelected !== null) {
             statusMsg.innerText = "카드를 제출했습니다. 상대방의 선택을 기다리는 중...";
@@ -123,14 +143,20 @@
         }
     });
 
-    socket.on('roundResult', ({ c1, c2, winner, wins }) => {
-        document.getElementById('slot-p1').innerText = c1;
-        document.getElementById('slot-p2').innerText = c2;
-        document.getElementById('status-msg').innerText = `라운드 결과: P1(${c1}) vs P2(${c2}) 👉 ${winner ? `${winner.toUpperCase()} 승리!` : '무승부!'}`;
+    // 결과 안내 시 숫자를 절대 노출하지 않고 승패만 안내
+    socket.on('roundResult', ({ winner }) => {
+        let resultText = "무승부입니다!";
+        if (winner) {
+            const isWin = (winner === myRole);
+            resultText = isWin ? "🎉 이번 라운드 승리!" : "😢 이번 라운드 패배!";
+        }
+        document.getElementById('status-msg').innerText = `라운드 결과: ${resultText}`;
     });
 
     socket.on('gameOver', (winner) => {
-        alert(`게임 종료! 최종 승자: ${winner.toUpperCase()}`);
+        const isGameWin = (winner === myRole);
+        alert(isGameWin ? "🏆 최종 승리하셨습니다!" : "💀 패배하셨습니다...");
+        myLastSelected = '-';
     });
 </script>
 
