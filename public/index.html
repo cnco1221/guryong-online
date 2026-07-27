@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>구룡투 실시간 온라인 대전</title>
+    <style>
+        :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --primary: #f59e0b; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
+        body { background-color: var(--bg); color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { width: 95%; max-width: 600px; background: var(--panel); border: 2px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; }
+        .lobby, .game-screen { display: flex; flex-direction: column; gap: 15px; }
+        .hidden { display: none !important; }
+        input { padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: white; font-size: 1rem; }
+        button { background: var(--primary); color: #000; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .board { background: #0f172a; border: 2px dashed var(--border); border-radius: 10px; height: 150px; display: flex; justify-content: center; align-items: center; gap: 30px; font-size: 1.2rem; font-weight: bold; }
+        .hand { display: flex; gap: 8px; justify-content: center; }
+        .card { width: 45px; height: 65px; border-radius: 6px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 1.1rem; cursor: pointer; border: 2px solid #555; }
+        .card-odd { background: #f1f5f9; color: #0f172a; }
+        .card-even { background: #334155; color: #f8fafc; }
+        .card.disabled { opacity: 0.3; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🐉 구룡투 온라인 대전</h1>
+
+    <!-- 로비 화면 -->
+    <div id="lobby-screen" class="lobby">
+        <p>함께 플레이할 방 코드를 입력하세요.</p>
+        <input type="text" id="room-input" placeholder="예: room123">
+        <button onclick="joinGame()">방 입장하기</button>
+    </div>
+
+    <!-- 게임 화면 -->
+    <div id="game-screen" class="game-screen hidden">
+        <div style="display:flex; justify-content:space-between; font-weight:bold;">
+            <span id="role-text" style="color:var(--primary);">역할: 대기중</span>
+            <span>스코어 - P1: <span id="p1-score">0</span>승 / P2: <span id="p2-score">0</span>승</span>
+        </div>
+
+        <div class="board">
+            <div>P1: <span id="slot-p1">?</span></div>
+            <div>VS</div>
+            <div>P2: <span id="slot-p2">?</span></div>
+        </div>
+
+        <div id="status-msg" style="text-align:center; color:#94a3b8; font-size:0.95rem;">상대방을 기다리는 중입니다...</div>
+
+        <div>
+            <div style="font-size:0.85rem; margin-bottom:5px;">내 손패</div>
+            <div id="my-hand" class="hand"></div>
+        </div>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    let myRole = null;
+    let currentRoom = null;
+
+    function joinGame() {
+        const roomCode = document.getElementById('room-input').value.trim();
+        if (!roomCode) {
+            alert('방 코드를 입력해주세요.');
+            return;
+        }
+        currentRoom = roomCode;
+        socket.emit('joinRoom', roomCode);
+
+        document.getElementById('lobby-screen').classList.add('hidden');
+        document.getElementById('game-screen').classList.remove('hidden');
+    }
+
+    socket.assignRole, socket.on('assignedRole', (role) => {
+        myRole = role;
+        document.getElementById('role-text').innerText = `역할: 플레이어 ${role === 'p1' ? '1 (백)' : '2 (흑)'}`;
+    });
+
+    socket.on('errorMsg', (msg) => {
+        alert(msg);
+        location.reload();
+    });
+
+    socket.on('updateState', (room) => {
+        document.getElementById('p1-score').innerText = room.wins.p1;
+        document.getElementById('p2-score').innerText = room.wins.p2;
+
+        // 슬롯 상태 (상대방이 냈는지만 확인, 숫자는 비공개)
+        document.getElementById('slot-p1').innerText = room.selected.p1 !== null ? '✓' : '?';
+        document.getElementById('slot-p2').innerText = room.selected.p2 !== null ? '✓' : '?';
+
+        // 내 손패 렌더링
+        const handContainer = document.getElementById('my-hand');
+        handContainer.innerHTML = '';
+        const myHandCards = room.hands[myRole];
+
+        for (let i = 1; i <= 9; i++) {
+            const card = document.createElement('div');
+            const isOdd = (i % 2 !== 0);
+            card.className = `card ${isOdd ? 'card-odd' : 'card-even'}`;
+
+            if (myHandCards.includes(i)) {
+                card.innerText = i;
+                card.onclick = () => {
+                    socket.emit('selectCard', { roomCode: currentRoom, card: i });
+                };
+            } else {
+                card.className += ' disabled';
+                card.innerText = '-';
+            }
+            handContainer.appendChild(card);
+        }
+
+        const mySelected = room.selected[myRole];
+        const statusMsg = document.getElementById('status-msg');
+        if (mySelected !== null) {
+            statusMsg.innerText = "카드를 제출했습니다. 상대방의 선택을 기다리는 중...";
+        } else {
+            statusMsg.innerText = "자신이 낼 카드를 선택하세요.";
+        }
+    });
+
+    socket.on('roundResult', ({ c1, c2, winner, wins }) => {
+        document.getElementById('slot-p1').innerText = c1;
+        document.getElementById('slot-p2').innerText = c2;
+        document.getElementById('status-msg').innerText = `라운드 결과: P1(${c1}) vs P2(${c2}) 👉 ${winner ? `${winner.toUpperCase()} 승리!` : '무승부!'}`;
+    });
+
+    socket.on('gameOver', (winner) => {
+        alert(`게임 종료! 최종 승자: ${winner.toUpperCase()}`);
+    });
+</script>
+
+</body>
+</html>
