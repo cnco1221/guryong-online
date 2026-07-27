@@ -7,7 +7,11 @@
     <style>
         :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --primary: #f59e0b; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
-        body { background-color: var(--bg); color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        body { background-color: var(--bg); color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; position: relative; }
+        
+        /* 💡 오른쪽 아래 구석에 ver1 추가 */
+        .version-badge { position: absolute; bottom: 15px; right: 20px; font-size: 0.75rem; color: #64748b; font-weight: bold; }
+
         .container { width: 95%; max-width: 600px; background: var(--panel); border: 2px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; }
         .lobby, .game-screen { display: flex; flex-direction: column; gap: 15px; }
         .hidden { display: none !important; }
@@ -22,13 +26,13 @@
         .card { width: 35px; height: 50px; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.9rem; cursor: pointer; border: 2px solid #555; }
         .card-odd { background: #ffffff; color: #0f172a; } /* 홀수: 백색 */
         .card-even { background: #000000; color: #ffffff; border-color: #555; } /* 짝수: 검정색 */
-        .card.disabled { opacity: 0.3; cursor: not-allowed; }
+        .card.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
         
         .card-slot { width: 35px; height: 50px; border: 2px solid var(--border); border-radius: 4px; display: flex; justify-content: center; align-items: center; background: #1e293b; font-weight: bold; font-size: 0.9rem; }
         
         .hand { display: flex; gap: 6px; justify-content: center; }
 
-        /* 게임 종료 오버레이 스타일 (전체 기록 수용 가능하도록 변경) */
+        /* 게임 종료 오버레이 스타일 */
         .game-over-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.96); border-radius: 10px; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; gap: 10px; z-index: 10; padding: 20px; text-align: center; overflow-y: auto; }
     </style>
 </head>
@@ -50,7 +54,7 @@
         </div>
 
         <div class="board" id="game-board-area">
-            <!-- 게임 종료 시 나타나는 결과 오버레이 (승리 메시지 밑에 전체 기록 표시) -->
+            <!-- 게임 종료 시 나타나는 결과 오버레이 -->
             <div id="game-over-box" class="game-over-overlay hidden">
                 <h2 id="game-over-title" style="font-size: 1.4rem; color: var(--primary); margin-top: 5px;">게임 종료</h2>
                 <p id="game-over-desc" style="font-size: 0.85rem; color: #94a3b8;"></p>
@@ -70,7 +74,7 @@
 
             <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
 
-            <!-- 중앙: 전턴에 냈던 카드 기록 (게임 중에는 상대방 숫자가 절대 보이지 않음) -->
+            <!-- 중앙: 전턴에 냈던 카드 기록 -->
             <div style="font-size:0.8rem; color:#94a3b8; font-weight:bold; width: 100%; text-align: left;">이전 턴 기록</div>
             <div id="history-list" class="history-container">
                 <span style="font-size:0.8rem; color:#64748b;">아직 기록이 없습니다.</span>
@@ -94,12 +98,16 @@
     </div>
 </div>
 
+<!-- 우측 하단 구석 버전 표기 -->
+<div class="version-badge">ver1</div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script>
     const socket = io();
     let myRole = null;
     let currentRoom = null;
     let myLastSelectedCard = null;
+    let isGameOver = false; // 💡 게임 종료 여부 추적 플래그
 
     function playSound(type) {
         try {
@@ -152,7 +160,7 @@
 
     socket.on('assignedRole', (role) => {
         myRole = role;
-        document.getElementById('role-text',).innerText = `역할: 플레이어 ${role === 'p1' ? '1' : '2'}`;
+        document.getElementById('role-text').innerText = `역할: 플레이어 ${role === 'p1' ? '1' : '2'}`;
     });
 
     socket.on('errorMsg', (msg) => { alert(msg); location.reload(); });
@@ -202,7 +210,6 @@
             mySlot.style.color = '#f8fafc';
         }
 
-        // 💡 게임 중 이전 턴 기록 (상대방 숫자는 절대 보이지 않고 '?'로 표시)
         const historyList = document.getElementById('history-list');
         historyList.innerHTML = '';
         if (room.history.length === 0) {
@@ -244,20 +251,22 @@
             const isOdd = (i % 2 !== 0);
             card.className = `card ${isOdd ? 'card-odd' : 'card-even'}`;
 
-            if (myHandCards.includes(i)) {
-                card.innerText = i;
-                if (isMyTurn) {
-                    card.onclick = () => {
-                        myLastSelectedCard = i;
-                        socket.emit('selectCard', { roomCode: currentRoom, card: i });
-                    };
+            // 💡 게임 종료 상태이거나, 이미 카드를 냈거나, 내 차례가 아니면 클릭 불가 처리
+            const alreadySubmitted = (room.selected[myRole] !== null);
+            if (isGameOver || !myHandCards.includes(i) || !isMyTurn || alreadySubmitted) {
+                card.className += ' disabled';
+                if (!myHandCards.includes(i)) {
+                    card.innerText = '-';
+                    card.style.backgroundColor = '#1e293b';
                 } else {
-                    card.className += ' disabled';
+                    card.innerText = i;
                 }
             } else {
-                card.className += ' disabled';
-                card.innerText = '-';
-                card.style.backgroundColor = '#1e293b';
+                card.innerText = i;
+                card.onclick = () => {
+                    myLastSelectedCard = i;
+                    socket.emit('selectCard', { roomCode: currentRoom, card: i });
+                };
             }
             handContainer.appendChild(card);
         }
@@ -265,6 +274,8 @@
         const statusMsg = document.getElementById('status-msg');
         if (room.players.length < 2) {
             statusMsg.innerText = "상대방을 기다리는 중입니다...";
+        } else if (alreadySubmitted) {
+            statusMsg.innerText = "카드를 제출했습니다. 결과를 기다리는 중...";
         } else if (isMyTurn) {
             statusMsg.innerText = room.subStep === 1 ? "당신이 [선공]입니다. 카드를 먼저 내세요." : "상대방이 먼저 낸 카드의 색상을 보고 대응할 차례입니다.";
         } else {
@@ -285,8 +296,8 @@
         document.getElementById('status-msg').innerText = `라운드 결과: ${resultText}`;
     });
 
-    // 💡 게임 종료 시 오버레이 내에 승리 메시지 밑으로 모든 카드가 숫자가 보이도록 히스토리 렌더링
     socket.on('gameOver', ({ winner, history }) => {
+        isGameOver = true; // 💡 게임 종료 플래그 활성화로 손패 잠금
         const isGameWin = (winner === myRole);
         const isDraw = (winner === 'draw');
         playSound(isGameWin ? 'win' : (isDraw ? 'draw' : 'lose'));
@@ -298,7 +309,6 @@
         document.getElementById('game-over-title').innerText = finalTitle;
         document.getElementById('game-over-desc').innerText = finalDesc;
 
-        // 게임 종료 후 기록 컨테이너 채우기 (상대방 숫자 전면 공개)
         const gameOverHistory = document.getElementById('game-over-history');
         gameOverHistory.innerHTML = '';
         history.forEach((h, index) => {
@@ -329,6 +339,11 @@
 
         gameOverBox.classList.remove('hidden');
         myLastSelectedCard = null;
+
+        // 💡 게임 종료 즉시 손패 전체 비활성화 스타일 적용
+        document.querySelectorAll('.card').forEach(card => {
+            card.classList.add('disabled');
+        });
     });
 </script>
 
