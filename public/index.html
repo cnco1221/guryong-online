@@ -16,8 +16,8 @@
         
         .board { background: #0f172a; border: 2px dashed var(--border); border-radius: 10px; padding: 15px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
         
-        .history-container { display: flex; gap: 8px; overflow-x: auto; width: 100%; padding: 5px 0; min-height: 60px; align-items: center; justify-content: flex-start; }
-        .history-slot { display: flex; flex-direction: column; gap: 3px; align-items: center; background: #1e293b; border: 1px solid var(--border); padding: 5px 8px; border-radius: 6px; min-width: 55px; flex-shrink: 0; }
+        .history-container { display: flex; gap: 8px; overflow-x: auto; width: 100%; padding: 5px 0; min-height: 80px; align-items: center; justify-content: flex-start; }
+        .history-slot { display: flex; flex-direction: column; gap: 3px; align-items: center; background: #1e293b; border: 1px solid var(--border); padding: 5px 8px; border-radius: 6px; min-width: 50px; flex-shrink: 0; }
 
         .card { width: 35px; height: 50px; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.9rem; cursor: pointer; border: 2px solid #555; }
         .card-odd { background: #ffffff; color: #0f172a; } /* 홀수: 백색 */
@@ -27,7 +27,6 @@
         .card-slot { width: 35px; height: 50px; border: 2px solid var(--border); border-radius: 4px; display: flex; justify-content: center; align-items: center; background: #1e293b; font-weight: bold; font-size: 0.9rem; }
         
         .hand { display: flex; gap: 6px; justify-content: center; }
-        .status-box { display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 0.85rem; color: #94a3b8; }
     </style>
 </head>
 <body>
@@ -49,16 +48,16 @@
 
         <div class="board">
             <!-- 상대방 영역 (위) -->
-            <div class="status-box">
-                <span>상대방 낸 카드</span>
-                <span id="opp-hand-count" style="color:#f59e0b; font-weight:bold;">상대 남은 손패: 백색 5장, 검정 4장</span>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
+                <span style="font-size: 0.85rem; color: #94a3b8;">상대방 낸 카드</span>
+                <div id="slot-opponent" class="card-slot">-</div>
+                <span id="opp-hand-count" style="color:#f59e0b; font-size: 0.8rem; font-weight:bold;">상대 남은 손패: 백색 5장, 검정 4장</span>
             </div>
-            <div id="slot-opponent" class="card-slot">-</div>
 
             <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
 
-            <!-- 중앙: 전턴에 냈던 카드 기록 (왼쪽부터 오른쪽으로 나열) -->
-            <div style="font-size:0.8rem; color:#94a3b8; font-weight:bold; width: 100%; text-align: left;">이전 턴 기록 (왼쪽부터 진행)</div>
+            <!-- 중앙: 전턴에 냈던 카드 기록 -->
+            <div style="font-size:0.8rem; color:#94a3b8; font-weight:bold; width: 100%; text-align: left;">이전 턴 기록</div>
             <div id="history-list" class="history-container">
                 <span style="font-size:0.8rem; color:#64748b;">아직 기록이 없습니다.</span>
             </div>
@@ -66,10 +65,9 @@
             <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
 
             <!-- 내 영역 (아래) -->
-            <div id="slot-my" class="card-slot">-</div>
-            <div class="status-box">
-                <span>내가 낸 카드</span>
-                <span>내 손패</span>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
+                <div id="slot-my" class="card-slot">-</div>
+                <span style="font-size: 0.85rem; color: #94a3b8;">내가 낸 카드</span>
             </div>
         </div>
 
@@ -95,54 +93,43 @@
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) return;
             const ctx = new AudioContext();
-
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.connect(gain);
             gain.connect(ctx.destination);
 
             const now = ctx.currentTime;
-
             if (type === 'win') {
-                // 승리 시 밝은 멜로디 (도-미-솔)
                 osc.type = 'triangle';
-                osc.frequency.setValueAtTime(523.25, now); // C5
-                osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
-                osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.setValueAtTime(659.25, now + 0.1);
+                osc.frequency.setValueAtTime(783.99, now + 0.2);
                 gain.gain.setValueAtTime(0.15, now);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-                osc.start(now);
-                osc.stop(now + 0.4);
+                osc.start(now); osc.stop(now + 0.4);
             } else if (type === 'lose') {
-                // 패배 시 낮은 멜로디 (솔-미-도)
                 osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(392.00, now); // G4
-                osc.frequency.setValueAtTime(329.63, now + 0.12); // E4
-                osc.frequency.setValueAtTime(261.63, now + 0.24); // C4
+                osc.frequency.setValueAtTime(392.00, now);
+                osc.frequency.setValueAtTime(329.63, now + 0.12);
+                osc.frequency.setValueAtTime(261.63, now + 0.24);
                 gain.gain.setValueAtTime(0.15, now);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-                osc.start(now);
-                osc.stop(now + 0.45);
+                osc.start(now); osc.stop(now + 0.45);
             } else if (type === 'draw') {
-                // 무승부 시 단일음
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(440, now); // A4
+                osc.frequency.setValueAtTime(440, now);
                 gain.gain.setValueAtTime(0.1, now);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-                osc.start(now);
-                osc.stop(now + 0.25);
+                osc.start(now); osc.stop(now + 0.25);
             }
         } catch (e) {
-            console.log('Audio playback error:', e);
+            console.log('Audio error:', e);
         }
     }
 
     function joinGame() {
         const roomCode = document.getElementById('room-input').value.trim();
-        if (!roomCode) {
-            alert('방 코드를 입력해주세요.');
-            return;
-        }
+        if (!roomCode) { alert('방 코드를 입력해주세요.'); return; }
         currentRoom = roomCode;
         socket.emit('joinRoom', roomCode);
 
@@ -155,27 +142,28 @@
         document.getElementById('role-text').innerText = `역할: 플레이어 ${role === 'p1' ? '1' : '2'}`;
     });
 
-    socket.on('errorMsg', (msg) => {
-        alert(msg);
-        location.reload();
-    });
+    socket.on('errorMsg', (msg) => { alert(msg); location.reload(); });
 
     socket.on('updateState', (room) => {
         document.getElementById('p1-score').innerText = room.wins.p1;
         document.getElementById('p2-score').innerText = room.wins.p2;
 
         const isP1 = (myRole === 'p1');
-        const myTurn = room.turn;
-        const isMyTurn = (myTurn === myRole);
+        const isMyTurn = (room.turn === myRole);
+
+        // 💡 턴이 끝나서 서버가 선택을 초기화했다면, 클라이언트 UI 변수도 초기화 (이전 카드 남는 버그 수정)
+        if (room.selected[myRole] === null) {
+            myLastSelectedCard = null;
+        }
 
         // 상대방 남은 손패 계산 (백색: 홀수, 검정색: 짝수)
         const oppRole = isP1 ? 'p2' : 'p1';
         const oppHandCards = room.hands[oppRole];
         let oppWhiteCount = oppHandCards.filter(c => c % 2 !== 0).length;
         let oppBlackCount = oppHandCards.filter(c => c % 2 === 0).length;
-        document.getElementById('opp-hand-count').innerText = `상대 남은 손패: 백색 ${oppWhiteCount}장, 검정 ${oppBlackCount}장`;
+        document.getElementById('opp-hand-count').innerText = `상대 남은 손패: 백색 ${oppWhiteCount}장 / 검정 ${oppBlackCount}장`;
 
-        // 상대방이 낸 카드 카드 객체 추출 (위치: 위)
+        // 상대방이 낸 카드 (위치: 위)
         const oppCard = isP1 ? room.selected.p2 : room.selected.p1;
         const oppSlot = document.getElementById('slot-opponent');
         oppSlot.className = 'card-slot';
@@ -191,7 +179,7 @@
             oppSlot.style.color = '#f8fafc';
         }
 
-        // 내 카드 슬롯 표시 (위치: 아래)
+        // 내 카드 (위치: 아래)
         const mySlot = document.getElementById('slot-my');
         mySlot.className = 'card-slot';
         if (myLastSelectedCard !== null) {
@@ -205,7 +193,7 @@
             mySlot.style.color = '#f8fafc';
         }
 
-        // 이전 턴 기록 (중앙에 왼쪽부터 오른쪽으로 쭉 나열)
+        // 💡 이전 턴 기록 (세로 배치: 위쪽 상대방, 아래쪽 내카드 + 승패 표시)
         const historyList = document.getElementById('history-list');
         historyList.innerHTML = '';
         if (room.history.length === 0) {
@@ -218,13 +206,21 @@
                 const myIsOdd = (myCard % 2 !== 0);
                 const oIsOdd = (oCard % 2 !== 0);
 
+                // 승무패 텍스트
+                let roundRes = "";
+                if (h.winner === myRole) roundRes = "<span style='color:#10b981'>승</span>"; // 초록색
+                else if (h.winner === null) roundRes = "<span style='color:#94a3b8'>무</span>"; // 회색
+                else roundRes = "<span style='color:#ef4444'>패</span>"; // 빨간색
+
                 const slot = document.createElement('div');
                 slot.className = 'history-slot';
                 slot.innerHTML = `
-                    <span style="font-size:0.65rem; color:#64748b;">${index+1}턴</span>
-                    <div style="display:flex; gap:3px;">
-                        <span style="font-size:0.6rem; padding:1px 3px; border-radius:2px; background:${oIsOdd ? '#fff':'#000'}; color:${oIsOdd?'#000':'#fff'};" title="상대 카드">상대(?)</span>
-                        <span style="font-size:0.6rem; padding:1px 3px; border-radius:2px; background:${myIsOdd ? '#fff':'#000'}; color:${myIsOdd?'#000':'#fff'};" title="내 카드">내(${myCard})</span>
+                    <div style="font-size:0.65rem; color:#64748b; margin-bottom:2px; font-weight:bold;">
+                        ${index+1}턴: ${roundRes}
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
+                        <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${oIsOdd ? '#fff':'#000'}; color:${oIsOdd?'#000':'#fff'};" title="상대 카드">?</div>
+                        <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${myIsOdd ? '#fff':'#000'}; color:${myIsOdd?'#000':'#fff'};" title="내 카드">${myCard}</div>
                     </div>
                 `;
                 historyList.appendChild(slot);
@@ -282,10 +278,31 @@
         document.getElementById('status-msg').innerText = `라운드 결과: ${resultText}`;
     });
 
-    socket.on('gameOver', (winner) => {
+    // 💡 게임 종료 시 넘어온 전체 history 배열을 파싱해서 Alert로 전부 보여줌
+    socket.on('gameOver', ({ winner, history }) => {
         const isGameWin = (winner === myRole);
-        playSound(isGameWin ? 'win' : 'lose');
-        alert(isGameWin ? "🏆 최종 승리하셨습니다!" : "💀 패배하셨습니다...");
+        const isDraw = (winner === 'draw');
+        playSound(isGameWin ? 'win' : (isDraw ? 'draw' : 'lose'));
+
+        let finalMsg = isGameWin ? "🏆 최종 승리하셨습니다!" : (isDraw ? "🤝 무승부로 게임이 종료되었습니다!" : "💀 패배하셨습니다...");
+        
+        let historyStr = "📊 [전체 라운드 결과 정산]\n\n";
+        history.forEach((h, i) => {
+            let myC = (myRole === 'p1') ? h.p1Card : h.p2Card;
+            let opC = (myRole === 'p1') ? h.p2Card : h.p1Card;
+            let result = "";
+            if (h.winner === myRole) result = "승리";
+            else if (h.winner === null) result = "무승부";
+            else result = "패배";
+            
+            historyStr += `${i+1}턴 ➔ 내 카드(${myC}) vs 상대 카드(${opC}) [${result}]\n`;
+        });
+
+        // 결과창 표시 전 약간의 딜레이
+        setTimeout(() => {
+            alert(`${finalMsg}\n\n${historyStr}`);
+        }, 300);
+
         myLastSelectedCard = null;
     });
 </script>
