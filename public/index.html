@@ -7,7 +7,7 @@
     <style>
         :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --primary: #f59e0b; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
-        body { background-color: var(--bg); color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; position: relative; }
+        body { background-color: var(--bg); color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; position: relative; transition: background-color 0.3s ease; }
         
         .version-badge { position: absolute; bottom: 15px; right: 20px; font-size: 0.75rem; color: #64748b; font-weight: bold; }
 
@@ -108,7 +108,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.4</div>
+<div class="version-badge">ver.6</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -118,7 +118,6 @@
     let myLastSelectedCard = null;
     let isGameOver = false;
     let hasCountedDown = false;
-    let roundResultText = ""; // 라운드 결과 직후에만 보여줄 임시 텍스트
 
     function playSound(type) {
         try {
@@ -157,6 +156,21 @@
         } catch (e) {
             console.log('Audio error:', e);
         }
+    }
+
+    function flashBackground(type) {
+        const body = document.body;
+        if (type === 'win') {
+            body.style.backgroundColor = '#064e3b';
+        } else if (type === 'lose') {
+            body.style.backgroundColor = '#7f1d1d';
+        } else if (type === 'draw') {
+            body.style.backgroundColor = '#334155';
+        }
+
+        setTimeout(() => {
+            body.style.backgroundColor = '#0f172a';
+        }, 600);
     }
 
     function joinGame() {
@@ -304,8 +318,6 @@
             } else {
                 card.innerText = i;
                 card.onclick = () => {
-                    // 다음 턴에 카드를 조작할 수 있으므로 라운드 결과 문구 지우기
-                    roundResultText = "";
                     myLastSelectedCard = i;
                     socket.emit('selectCard', { roomCode: currentRoom, card: i });
                 };
@@ -316,42 +328,30 @@
         const statusMsg = document.getElementById('status-msg');
         const isCountingDownActive = !document.getElementById('countdown-box').classList.contains('hidden');
 
-        let turnText = "";
-        if (isMyTurn) {
-            turnText = room.subStep === 1 ? "[선공] 선공" : "[선공] 선공";
-        } else {
-            turnText = "[후공] 후공";
-        }
+        let turnText = isMyTurn ? "선공" : "후공";
 
         if (!isBothPlayersJoined) {
             statusMsg.innerText = "상대방이 들어오기를 기다리는 중입니다...";
         } else if (isCountingDownActive) {
             statusMsg.innerText = "상대방이 입장했습니다! 게임 시작 준비 중...";
-        } else if (roundResultText) {
-            // 라운드 결과가 도착한 직후에는 결과만 보여줌
-            statusMsg.innerText = roundResultText;
         } else if (isCountingDownActive === false && hasCountedDown && room.history.length === 0 && room.selected.p1 === null && room.selected.p2 === null) {
             statusMsg.innerText = `카운트다운 완료! | ${turnText}`;
         } else if (alreadySubmitted) {
             statusMsg.innerText = "카드를 제출했습니다. 결과를 기다리는 중...";
         } else {
-            // 카드를 낼 수 있는 다음 턴에는 결과 문구가 제거되고 선/후공 문구만 출력
             statusMsg.innerText = turnText;
         }
     });
 
     socket.on('roundResult', ({ winner }) => {
-        let resultText = "무승부입니다!";
         if (winner) {
             const isWin = (winner === myRole);
-            resultText = isWin ? "🎉 이번 라운드 승리!" : "😢 이번 라운드 패배!";
             playSound(isWin ? 'win' : 'lose');
+            flashBackground(isWin ? 'win' : 'lose');
         } else {
-            resultText = "무승부! 선공권이 유지됩니다.";
             playSound('draw');
+            flashBackground('draw');
         }
-        // 나와 상대방이 카드를 내어 라운드가 끝난 직후의 결과 메시지 세팅
-        roundResultText = `라운드 결과: ${resultText}`;
     });
 
     socket.on('gameOver', ({ winner, history }) => {
