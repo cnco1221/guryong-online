@@ -108,7 +108,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.3</div>
+<div class="version-badge">ver.4</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -118,7 +118,7 @@
     let myLastSelectedCard = null;
     let isGameOver = false;
     let hasCountedDown = false;
-    let lastRoundHistoryLength = 0; // 라운드 결과 후 선/후공 문구 출력을 추적하기 위한 변수
+    let lastRoundResultText = "";
 
     function playSound(type) {
         try {
@@ -314,41 +314,30 @@
         const statusMsg = document.getElementById('status-msg');
         const isCountingDownActive = !document.getElementById('countdown-box').classList.contains('hidden');
 
-        // 라운드 결과 직후 선/후공 안내 문구 반영을 위해 history 길이 변화 감지
-        const isJustAfterRoundResult = (room.history.length > lastRoundHistoryLength);
-        if (room.history.length === 0) {
-            lastRoundHistoryLength = 0;
+        let turnText = "";
+        if (isMyTurn) {
+            turnText = room.subStep === 1 ? "[선공] 당신이 선공입니다. 카드를 먼저 내세요." : "[선공] 상대방이 먼저 낸 카드의 색상을 보고 대응할 차례입니다.";
+        } else {
+            turnText = "[후공] 상대방이 먼저 카드를 내는 중입니다. 잠시 기다려주세요...";
         }
 
         if (!isBothPlayersJoined) {
             statusMsg.innerText = "상대방이 들어오기를 기다리는 중입니다...";
         } else if (isCountingDownActive) {
             statusMsg.innerText = "상대방이 입장했습니다! 게임 시작 준비 중...";
-        } else if (isJustAfterRoundResult && room.history.length > 0) {
-            // 라운드 결과가 끝난 직후 선/후공 상태 명시 안내
-            if (isMyTurn) {
-                statusMsg.innerText = `라운드 결과 완료! [선공] 당신이 선공입니다. 카드를 먼저 내세요.`;
-            } else {
-                statusMsg.innerText = `라운드 결과 완료! [후공] 상대방이 먼저 카드를 내는 중입니다.`;
-            }
+        } else if (lastRoundResultText) {
+            statusMsg.innerText = `${lastRoundResultText} | ${turnText}`;
+            lastRoundResultText = ""; 
+        } else if (isCountingDownActive === false && hasCountedDown && room.history.length === 0 && room.selected.p1 === null && room.selected.p2 === null) {
+            statusMsg.innerText = `카운트다운 완료! | ${turnText}`;
         } else if (alreadySubmitted) {
             statusMsg.innerText = "카드를 제출했습니다. 결과를 기다리는 중...";
-        } else if (isCountingDownActive === false && hasCountedDown && room.history.length === 0 && room.selected.p1 === null && room.selected.p2 === null) {
-            // 카운트다운이 막 끝난 최초 시작 시점 선/후공 안내
-            if (isMyTurn) {
-                statusMsg.innerText = "[선공] 카운트다운 완료! 당신이 선공입니다. 카드를 먼저 내세요.";
-            } else {
-                statusMsg.innerText = "[후공] 카운트다운 완료! 상대방이 먼저 카드를 내는 중입니다.";
-            }
-        } else if (isMyTurn) {
-            statusMsg.innerText = room.subStep === 1 ? "[선공] 당신이 선공입니다. 카드를 먼저 내세요." : "[선공] 상대방이 먼저 낸 카드의 색상을 보고 대응할 차례입니다.";
         } else {
-            statusMsg.innerText = "[후공] 상대방이 먼저 카드를 내는 중입니다. 잠시 기다려주세요...";
+            statusMsg.innerText = turnText;
         }
     });
 
     socket.on('roundResult', ({ winner }) => {
-        lastRoundHistoryLength++; // 라운드 종료 카운트 증가 처리
         let resultText = "무승부입니다!";
         if (winner) {
             const isWin = (winner === myRole);
@@ -358,7 +347,7 @@
             resultText = "무승부! 선공권이 유지됩니다.";
             playSound('draw');
         }
-        document.getElementById('status-msg').innerText = `라운드 결과: ${resultText}`;
+        lastRoundResultText = `라운드 결과: ${resultText}`;
     });
 
     socket.on('gameOver', ({ winner, history }) => {
