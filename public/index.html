@@ -334,8 +334,6 @@
             statusMsg.innerText = "상대방이 들어오기를 기다리는 중입니다...";
         } else if (isCountingDownActive) {
             statusMsg.innerText = "상대방이 입장했습니다! 게임 시작 준비 중...";
-        } else if (isCountingDownActive === false && hasCountedDown && room.history.length === 0 && room.selected.p1 === null && room.selected.p2 === null) {
-            statusMsg.innerText = `카운트다운 완료! | ${turnText}`;
         } else if (alreadySubmitted) {
             statusMsg.innerText = "카드를 제출했습니다. 결과를 기다리는 중...";
         } else {
