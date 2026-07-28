@@ -93,11 +93,27 @@
 
 <div class="container">
     <h1 id="main-title">🐉 방랑단과 구룡투</h1>
+    <div id="online-count-bar" style="text-align:center; font-size:0.75rem; color:#94a3b8;">🟢 접속자 <span id="online-count">0</span>명</div>
 
     <div id="lobby-screen" class="lobby">
-        <p>함께 플레이할 방 코드를 입력하세요.</p>
-        <input type="text" id="room-input" placeholder="예: room123">
-        <button onclick="joinGame()">방 입장하기</button>
+        <input type="text" id="nickname-input" placeholder="닉네임을 입력하세요 (최대 8자)" maxlength="8">
+        <button onclick="createRoom()">🆕 새 방 만들기</button>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+            <span style="font-weight:bold; font-size:0.85rem; color:#94a3b8;">📋 방 목록</span>
+            <button onclick="requestRoomList()" style="padding:3px 8px; font-size:0.7rem;">🔄 새로고침</button>
+        </div>
+        <div id="room-list-box" style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto;">
+            <div style="text-align:center; color:#64748b; font-size:0.8rem; padding:10px;">방 목록을 불러오는 중...</div>
+        </div>
+
+        <details style="margin-top:2px;">
+            <summary style="cursor:pointer; font-size:0.78rem; color:#94a3b8;">코드로 직접 입장하기</summary>
+            <div style="display:flex; gap:6px; margin-top:6px;">
+                <input type="text" id="room-input" placeholder="방 코드" style="flex:1;">
+                <button onclick="joinByCode()" style="white-space:nowrap;">입장</button>
+            </div>
+        </details>
     </div>
 
     <div id="game-screen" class="game-screen hidden">
@@ -168,7 +184,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.16</div>
+<div class="version-badge">ver.17</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -362,18 +378,126 @@
     });
     // ===== 이모티콘 기능 끝 =====
 
-    function joinGame() {
-        const roomCode = document.getElementById('room-input').value.trim();
-        if (!roomCode) { alert('방 코드를 입력해주세요.'); return; }
-        currentRoom = roomCode;
-        socket.emit('joinRoom', roomCode);
+    // ===== 닉네임 =====
+    let myNickname = localStorage.getItem('guryong_nickname') || '';
+    if (myNickname) {
+        document.getElementById('nickname-input').value = myNickname;
+    }
 
+    function readNickname() {
+        const val = document.getElementById('nickname-input').value.trim();
+        if (!val) {
+            alert('닉네임을 입력해주세요.');
+            return null;
+        }
+        myNickname = val.slice(0, 8);
+        localStorage.setItem('guryong_nickname', myNickname);
+        return myNickname;
+    }
+
+    // ===== 화면 전환 =====
+    function enterGameScreen(roomCode) {
+        currentRoom = roomCode;
         document.getElementById('lobby-screen').classList.add('hidden');
         document.getElementById('game-screen').classList.remove('hidden');
         document.getElementById('main-title').classList.add('hidden');
+        document.getElementById('online-count-bar').classList.add('hidden');
         document.body.classList.add('in-game');
         document.getElementById('room-text').innerText = `방 번호: ${roomCode}`;
     }
+
+    // ===== 방 만들기 / 목록에서 입장 / 코드로 입장 =====
+    function createRoom() {
+        const nickname = readNickname();
+        if (!nickname) return;
+        socket.emit('createRoom', { nickname });
+    }
+
+    function joinRoomFromList(roomCode) {
+        const nickname = readNickname();
+        if (!nickname) return;
+        socket.emit('joinRoom', { roomCode, nickname });
+        enterGameScreen(roomCode);
+    }
+
+    function joinByCode() {
+        const roomCode = document.getElementById('room-input').value.trim();
+        if (!roomCode) { alert('방 코드를 입력해주세요.'); return; }
+        const nickname = readNickname();
+        if (!nickname) return;
+        socket.emit('joinRoom', { roomCode, nickname });
+        enterGameScreen(roomCode);
+    }
+
+    socket.on('roomCreated', (roomCode) => {
+        enterGameScreen(roomCode);
+    });
+
+    socket.on('joinError', (msg) => {
+        alert(msg);
+        document.getElementById('game-screen').classList.add('hidden');
+        document.getElementById('lobby-screen').classList.remove('hidden');
+        document.getElementById('main-title').classList.remove('hidden');
+        document.getElementById('online-count-bar').classList.remove('hidden');
+        document.body.classList.remove('in-game');
+        currentRoom = null;
+        requestRoomList();
+    });
+
+    // ===== 접속자 수 / 방 목록 =====
+    socket.on('onlineCount', (count) => {
+        document.getElementById('online-count').innerText = count;
+    });
+
+    function requestRoomList() {
+        socket.emit('getRoomList');
+    }
+
+    function renderRoomList(list) {
+        const box = document.getElementById('room-list-box');
+        box.innerHTML = '';
+
+        if (!list || list.length === 0) {
+            box.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.8rem; padding:10px;">현재 열린 방이 없습니다. 새 방을 만들어보세요!</div>';
+            return;
+        }
+
+        list.forEach((r) => {
+            const item = document.createElement('div');
+            item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#0f172a; border:1px solid var(--border); border-radius:8px; padding:8px 10px; gap:8px;';
+
+            const statusLabel = r.status === 'playing' ? '🎮 게임중' : (r.status === 'finished' ? '🏁 종료' : '⏳ 대기중');
+            const names = [r.hostNickname, r.guestNickname].filter(Boolean).join(' vs ') || '(닉네임 없음)';
+
+            const info = document.createElement('div');
+            info.style.cssText = 'min-width:0;';
+            info.innerHTML = `
+                <div style="font-weight:bold; font-size:0.85rem;">방 ${r.roomCode}</div>
+                <div style="font-size:0.72rem; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${names} · ${statusLabel} (${r.playerCount}/2)</div>
+            `;
+
+            const btn = document.createElement('button');
+            btn.style.cssText = 'padding:5px 10px; font-size:0.75rem; flex-shrink:0;';
+            if (r.playerCount >= 2) {
+                btn.innerText = '입장불가';
+                btn.disabled = true;
+                btn.style.opacity = 0.4;
+                btn.style.cursor = 'not-allowed';
+            } else {
+                btn.innerText = '입장';
+                btn.onclick = () => joinRoomFromList(r.roomCode);
+            }
+
+            item.appendChild(info);
+            item.appendChild(btn);
+            box.appendChild(item);
+        });
+    }
+
+    socket.on('roomList', (list) => {
+        renderRoomList(list);
+    });
+    // ===== 방 목록/닉네임 기능 끝 =====
 
     socket.on('assignedRole', (role) => {
         myRole = role;
@@ -398,7 +522,7 @@
                 clearInterval(timer);
                 box.classList.add('hidden');
                 isCountingDownActive = false;
-                socket.emit('joinRoom', currentRoom); 
+                socket.emit('joinRoom', { roomCode: currentRoom, nickname: myNickname });
             }
         }, 1000);
     }
