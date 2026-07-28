@@ -64,7 +64,11 @@
         .emoji-bubble::after { content: ''; position: absolute; top: 50%; left: -12px; transform: translateY(-50%); border-width: 8px 12px 8px 0; border-style: solid; border-color: transparent #f8fafc transparent transparent; }
         .emoji-popup-label { margin-top: 3px; font-size: 0.65rem; color: #0f172a; font-weight: bold; }
 
-        .score-side { position: absolute; top: 50%; right: 100%; margin-right: 18px; transform: translateY(-50%); text-align: center; white-space: nowrap; }
+        /* 낸 카드 줄: [점수] [빈 간격] [카드(항상 정중앙 고정)] [빈 간격] 형태의 3열 그리드.
+           양쪽 끝 열(1fr)의 폭이 항상 같기 때문에 점수 글자 수와 상관없이 가운데 열(카드)의 위치가 흔들리지 않음. */
+        .card-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; column-gap: 18px; }
+        .score-side { justify-self: end; text-align: center; white-space: nowrap; }
+        .card-center-wrap { position: relative; display: inline-block; justify-self: center; }
     </style>
 </head>
 <body>
@@ -97,19 +101,22 @@
 
             <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
                 <span style="font-size: 0.85rem; color: #94a3b8;">상대방 낸 카드</span>
-                <div style="position:relative; display:inline-block;">
+                <div class="card-row">
                     <div class="score-side">
                         <div style="font-size:0.6rem; color:#94a3b8;">상대</div>
                         <div id="opp-score" style="font-size:1.6rem; font-weight:bold; color:#ef4444; line-height:1;">0</div>
                         <div style="font-size:0.55rem; color:#64748b;">승</div>
                     </div>
-                    <div id="slot-opponent" class="card-slot">-</div>
-                    <div id="emoji-popup-opp" class="emoji-popup">
-                        <div class="emoji-bubble">
-                            <img id="emoji-popup-opp-img" src="" alt="emoji">
-                            <div id="emoji-popup-opp-label" class="emoji-popup-label"></div>
+                    <div class="card-center-wrap">
+                        <div id="slot-opponent" class="card-slot">-</div>
+                        <div id="emoji-popup-opp" class="emoji-popup">
+                            <div class="emoji-bubble">
+                                <img id="emoji-popup-opp-img" src="" alt="emoji">
+                                <div id="emoji-popup-opp-label" class="emoji-popup-label"></div>
+                            </div>
                         </div>
                     </div>
+                    <div></div>
                 </div>
                 <span id="opp-hand-count" style="color:#f59e0b; font-size: 0.8rem; font-weight:bold;">상대 남은 손패: 백색 5장, 검정 4장</span>
             </div>
@@ -124,19 +131,22 @@
             <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
 
             <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
-                <div style="position:relative; display:inline-block;">
+                <div class="card-row">
                     <div class="score-side">
                         <div style="font-size:0.6rem; color:#94a3b8;">나</div>
                         <div id="my-score" style="font-size:1.6rem; font-weight:bold; color:#10b981; line-height:1;">0</div>
                         <div style="font-size:0.55rem; color:#64748b;">승</div>
                     </div>
-                    <div id="slot-my" class="card-slot">-</div>
-                    <div id="emoji-popup-mine" class="emoji-popup">
-                        <div class="emoji-bubble">
-                            <img id="emoji-popup-mine-img" src="" alt="emoji">
-                            <div id="emoji-popup-mine-label" class="emoji-popup-label"></div>
+                    <div class="card-center-wrap">
+                        <div id="slot-my" class="card-slot">-</div>
+                        <div id="emoji-popup-mine" class="emoji-popup">
+                            <div class="emoji-bubble">
+                                <img id="emoji-popup-mine-img" src="" alt="emoji">
+                                <div id="emoji-popup-mine-label" class="emoji-popup-label"></div>
+                            </div>
                         </div>
                     </div>
+                    <div></div>
                 </div>
                 <span style="font-size: 0.85rem; color: #94a3b8;">내가 낸 카드</span>
             </div>
@@ -162,7 +172,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.21</div>
+<div class="version-badge">ver.22</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -499,7 +509,7 @@
         }
 
         const statusMsg = document.getElementById('status-msg');
-        let turnText = isMyTurnInitial ? "선공입니다. 먼저 선택하세요." : "후공입니다. 대응하세요.";
+        let turnText = "카드를 선택하세요.";
 
         if (!isBothPlayersJoined) {
             statusMsg.innerText = "상대방이 들어오기를 기다리는 중입니다...";
