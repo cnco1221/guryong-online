@@ -172,7 +172,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.22</div>
+<div class="version-badge">ver.23</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -383,6 +383,7 @@
     }
 
     socket.on('updateState', (room) => {
+      try {
         const isP1 = (myRole === 'p1');
         const oppRole = isP1 ? 'p2' : 'p1';
 
@@ -399,7 +400,7 @@
         }
 
         const isMyTurnInitial = (lockedRoundTurn === myRole);
-        const alreadySubmitted = (room.selected[myRole] !== null);
+        const alreadySubmitted = myRole ? (room.selected[myRole] !== null) : false;
 
         if (room.selected[myRole] === null) {
             myLastSelectedCard = null;
@@ -480,7 +481,7 @@
 
         const handContainer = document.getElementById('my-hand');
         handContainer.innerHTML = '';
-        const myHandCards = room.hands[myRole];
+        const myHandCards = room.hands[myRole] || [];
 
         // 행동 가능 여부: 내가 선공이거나, 혹은 선공이 이미 카드를 낸 상태일 때 후공도 행동 가능
         const canActNow = isMyTurnInitial || (room.selected[oppRole] !== null);
@@ -520,6 +521,12 @@
         } else {
             statusMsg.innerText = turnText;
         }
+      } catch (err) {
+        // 예기치 못한 오류가 나더라도 화면이 멈추지 않도록 안전망 처리
+        console.error('updateState 처리 중 오류:', err);
+        const statusMsgEl = document.getElementById('status-msg');
+        if (statusMsgEl) statusMsgEl.innerText = "상태를 갱신하는 중 문제가 발생했습니다. 잠시 후 자동으로 복구됩니다...";
+      }
     });
 
     socket.on('roundResult', ({ winner }) => {
