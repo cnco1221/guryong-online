@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>구룡투 실시간 온라인 대전</title>
+    <title>방랑단과 구룡투</title>
     <style>
         :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --primary: #f59e0b; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
@@ -36,12 +36,27 @@
         @keyframes popScale { 0% { transform: scale(0.8); opacity: 0.5; } 50% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(0.8); opacity: 0.5; } }
 
         .game-over-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.96); border-radius: 10px; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; gap: 10px; z-index: 10; padding: 20px; text-align: center; overflow-y: auto; }
+
+        .emoji-bar { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        .emoji-btn { position: relative; width: 34px; height: 34px; padding: 2px; border-radius: 6px; background: #1e293b; border: 1px solid var(--border); cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.1s ease, opacity 0.2s ease; }
+        .emoji-btn img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+        .emoji-btn:hover { transform: scale(1.08); border-color: var(--primary); }
+        .emoji-btn.cooldown { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+        .emoji-btn .cooldown-num { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; font-size: 0.8rem; font-weight: bold; color: var(--primary); background: rgba(15,23,42,0.6); border-radius: 6px; }
+
+        .emoji-bubble { position: absolute; top: -70px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; flex-direction: column; align-items: center; animation: bubblePop 0.25s ease; pointer-events: none; }
+        @keyframes bubblePop { 0% { transform: translateX(-50%) scale(0.5); opacity: 0; } 100% { transform: translateX(-50%) scale(1); opacity: 1; } }
+        .emoji-bubble .bubble-inner { background: #f8fafc; border: 2px solid var(--primary); border-radius: 14px; padding: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+        .emoji-bubble .bubble-inner img { display: block; width: 56px; height: 56px; object-fit: contain; }
+        .emoji-bubble .bubble-tail { width: 14px; height: 14px; background: #f8fafc; border-right: 2px solid var(--primary); border-bottom: 2px solid var(--primary); transform: rotate(45deg); margin-top: -8px; }
+        .emoji-bubble.fade-out { animation: bubbleFade 0.3s ease forwards; }
+        @keyframes bubbleFade { to { opacity: 0; transform: translateX(-50%) scale(0.8); } }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>🐉 구룡투 실시간 온라인 대전</h1>
+    <h1 id="main-title">🐉 방랑단과 구룡투</h1>
 
     <div id="lobby-screen" class="lobby">
         <p>함께 플레이할 방 코드를 입력하세요.</p>
@@ -71,7 +86,7 @@
                 <button onclick="location.reload()" style="margin-top: 10px; padding: 6px 15px;">새 게임 시작하기</button>
             </div>
 
-            <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
+            <div id="opponent-card-area" style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%; position:relative;">
                 <span style="font-size: 0.85rem; color: #94a3b8;">상대방 낸 카드</span>
                 <div id="slot-opponent" class="card-slot">-</div>
                 <span id="opp-hand-count" style="color:#f59e0b; font-size: 0.8rem; font-weight:bold;">상대 남은 손패: 백색 5장, 검정 4장</span>
@@ -86,7 +101,7 @@
 
             <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
 
-            <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
+            <div id="my-card-area" style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%; position:relative;">
                 <div id="slot-my" class="card-slot">-</div>
                 <span style="font-size: 0.85rem; color: #94a3b8;">내가 낸 카드</span>
             </div>
@@ -97,6 +112,11 @@
         <div>
             <div style="font-size:0.85rem; margin-bottom:5px;">내 손패 (홀수: 백색 / 짝수: 검정색)</div>
             <div id="my-hand" class="hand"></div>
+        </div>
+
+        <div>
+            <div style="font-size:0.75rem; margin-bottom:5px; color:#94a3b8;">이모티콘</div>
+            <div id="emoji-bar" class="emoji-bar"></div>
         </div>
     </div>
 </div>
@@ -171,6 +191,105 @@
         }, 600);
     }
 
+    // ===== 이모티콘 기능 =====
+    const EMOJI_LIST = [
+        { id: 'wave', file: '/emojis/wave.png' },
+        { id: 'thumbsup', file: '/emojis/thumbsup.png' },
+        { id: 'think', file: '/emojis/think.png' },
+        { id: 'laugh', file: '/emojis/laugh.png' },
+        { id: 'facepalm', file: '/emojis/facepalm.png' }
+    ];
+    const EMOJI_COOLDOWN_MS = 3000;
+    const EMOJI_DISPLAY_MS = 3000;
+    let emojiCooldownUntil = 0;
+    let emojiCooldownTimer = null;
+
+    function renderEmojiBar() {
+        const bar = document.getElementById('emoji-bar');
+        bar.innerHTML = '';
+        EMOJI_LIST.forEach(emoji => {
+            const btn = document.createElement('div');
+            btn.className = 'emoji-btn';
+            btn.dataset.emojiId = emoji.id;
+            btn.innerHTML = `<img src="${emoji.file}" alt="${emoji.id}">`;
+            btn.onclick = () => sendEmoji(emoji.id);
+            bar.appendChild(btn);
+        });
+    }
+    renderEmojiBar();
+
+    function updateEmojiCooldownUI() {
+        const remaining = emojiCooldownUntil - Date.now();
+        document.querySelectorAll('#emoji-bar .emoji-btn').forEach(btn => {
+            const numEl = btn.querySelector('.cooldown-num');
+            if (remaining > 0) {
+                btn.classList.add('cooldown');
+                const secs = Math.ceil(remaining / 1000);
+                if (numEl) {
+                    numEl.innerText = secs;
+                } else {
+                    const span = document.createElement('span');
+                    span.className = 'cooldown-num';
+                    span.innerText = secs;
+                    btn.appendChild(span);
+                }
+            } else {
+                btn.classList.remove('cooldown');
+                if (numEl) numEl.remove();
+            }
+        });
+    }
+
+    function sendEmoji(emojiId) {
+        if (!currentRoom || !myRole) return;
+        if (Date.now() < emojiCooldownUntil) return;
+
+        socket.emit('sendEmoji', { roomCode: currentRoom, emojiId });
+
+        emojiCooldownUntil = Date.now() + EMOJI_COOLDOWN_MS;
+        updateEmojiCooldownUI();
+        if (emojiCooldownTimer) clearInterval(emojiCooldownTimer);
+        emojiCooldownTimer = setInterval(() => {
+            updateEmojiCooldownUI();
+            if (Date.now() >= emojiCooldownUntil) {
+                clearInterval(emojiCooldownTimer);
+                emojiCooldownTimer = null;
+            }
+        }, 250);
+    }
+
+    function showEmojiBubble(role, emojiId) {
+        const emoji = EMOJI_LIST.find(e => e.id === emojiId);
+        if (!emoji) return;
+
+        const isMine = (role === myRole);
+        const areaId = isMine ? 'my-card-area' : 'opponent-card-area';
+        const area = document.getElementById(areaId);
+        if (!area) return;
+
+        // 기존 말풍선이 있으면 즉시 제거
+        const existing = area.querySelector('.emoji-bubble');
+        if (existing) existing.remove();
+
+        const bubble = document.createElement('div');
+        bubble.className = 'emoji-bubble';
+        bubble.innerHTML = `
+            <div class="bubble-inner"><img src="${emoji.file}" alt="${emoji.id}"></div>
+            <div class="bubble-tail"></div>
+        `;
+        area.appendChild(bubble);
+
+        setTimeout(() => {
+            bubble.classList.add('fade-out');
+            setTimeout(() => bubble.remove(), 300);
+        }, EMOJI_DISPLAY_MS);
+    }
+
+    socket.on('emojiReceived', ({ role, emojiId }) => {
+        showEmojiBubble(role, emojiId);
+    });
+    // ===== 이모티콘 기능 끝 =====
+
     function joinGame() {
         const roomCode = document.getElementById('room-input').value.trim();
         if (!roomCode) { alert('방 코드를 입력해주세요.'); return; }
@@ -179,6 +298,7 @@
 
         document.getElementById('lobby-screen').classList.add('hidden');
         document.getElementById('game-screen').classList.remove('hidden');
+        document.getElementById('main-title').classList.add('hidden');
     }
 
     socket.on('assignedRole', (role) => {
