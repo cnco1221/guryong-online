@@ -101,7 +101,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.13</div>
+<div class="version-badge">ver.14</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -296,6 +296,7 @@
                 `;
                 historyList.appendChild(slot);
             });
+            historyList.scrollLeft = historyList.scrollWidth;
         }
 
         const isBothPlayersJoined = (room.players && room.players.length >= 2);
