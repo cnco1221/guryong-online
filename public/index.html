@@ -48,12 +48,10 @@
         .emoji-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .emoji-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-        .emoji-popup { position: absolute; top: 50%; left: 100%; margin-left: 10px; transform: translateY(-50%) scale(0.6); opacity: 0; z-index: 25; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; }
-        .emoji-popup.show { opacity: 1; transform: translateY(-50%) scale(1); }
-        .emoji-bubble { position: relative; background: #f8fafc; border: 2px solid var(--border); border-radius: 16px; padding: 8px 10px 6px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 6px 16px rgba(0,0,0,0.45); }
-        .emoji-bubble img { width: 84px; height: 84px; object-fit: contain; display: block; }
-        .emoji-bubble::after { content: ''; position: absolute; top: 50%; left: -12px; transform: translateY(-50%); border-width: 8px 12px 8px 0; border-style: solid; border-color: transparent #f8fafc transparent transparent; }
-        .emoji-popup-label { margin-top: 3px; font-size: 0.65rem; color: #0f172a; font-weight: bold; }
+        .emoji-popup { position: absolute; top: 45%; left: 50%; width: 90px; height: 90px; transform: translate(-50%, -50%) scale(0.6); opacity: 0; z-index: 25; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; }
+        .emoji-popup.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        .emoji-popup img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 6px 12px rgba(0,0,0,0.5)); }
+        .emoji-popup-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; color: #f8fafc; background: rgba(15,23,42,0.85); padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -79,6 +77,11 @@
                 <div id="countdown-num" class="countdown-number">3</div>
             </div>
 
+            <div id="emoji-popup" class="emoji-popup">
+                <img id="emoji-popup-img" src="" alt="emoji">
+                <div id="emoji-popup-label" class="emoji-popup-label"></div>
+            </div>
+
             <div id="game-over-box" class="game-over-overlay hidden">
                 <h2 id="game-over-title" style="font-size: 1.4rem; color: var(--primary); margin-top: 5px;">게임 종료</h2>
                 <p id="game-over-desc" style="font-size: 0.85rem; color: #94a3b8;"></p>
@@ -91,15 +94,7 @@
 
             <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
                 <span style="font-size: 0.85rem; color: #94a3b8;">상대방 낸 카드</span>
-                <div style="position:relative; display:inline-block;">
-                    <div id="slot-opponent" class="card-slot">-</div>
-                    <div id="emoji-popup" class="emoji-popup">
-                        <div class="emoji-bubble">
-                            <img id="emoji-popup-img" src="" alt="emoji">
-                            <div id="emoji-popup-label" class="emoji-popup-label"></div>
-                        </div>
-                    </div>
-                </div>
+                <div id="slot-opponent" class="card-slot">-</div>
                 <span id="opp-hand-count" style="color:#f59e0b; font-size: 0.8rem; font-weight:bold;">상대 남은 손패: 백색 5장, 검정 4장</span>
             </div>
 
@@ -138,7 +133,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.17</div>
+<div class="version-badge">ver.15</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -161,9 +156,7 @@
 
     // 이모티콘 관련 변수
     const EMOJI_IDS = [1, 2, 3, 4];
-    const EMOJI_COOLDOWN_MS = 5000;
     let emojiPopupTimeout = null;
-    let emojiCooldownActive = false;
 
     function setupEmojiBar() {
         const bar = document.getElementById('emoji-bar');
@@ -174,25 +167,13 @@
             btn.className = 'emoji-btn';
             btn.innerHTML = `<img src="/emojis/e${id}.png" alt="emoji${id}">`;
             btn.onclick = () => {
-                if (!currentRoom || emojiCooldownActive || isGameOver) return;
+                if (!currentRoom) return;
                 socket.emit('sendEmoji', { roomCode: currentRoom, emojiId: id });
-                startEmojiCooldown();
             };
             bar.appendChild(btn);
         });
     }
     setupEmojiBar();
-
-    function startEmojiCooldown() {
-        emojiCooldownActive = true;
-        document.querySelectorAll('.emoji-btn').forEach(b => { b.disabled = true; });
-        setTimeout(() => {
-            emojiCooldownActive = false;
-            if (!isGameOver) {
-                document.querySelectorAll('.emoji-btn').forEach(b => { b.disabled = false; });
-            }
-        }, EMOJI_COOLDOWN_MS);
-    }
 
     function stopTurnTimerDisplay() {
         if (turnTimerInterval) {
