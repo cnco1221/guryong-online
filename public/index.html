@@ -117,8 +117,9 @@
     </div>
 
     <div id="game-screen" class="game-screen hidden">
-        <div style="text-align:center; font-weight:bold;">
+        <div style="text-align:center; font-weight:bold; display:flex; align-items:center; justify-content:center; gap:8px;">
             <span id="room-text" style="color:var(--primary);">방 번호: -</span>
+            <button id="leave-spectate-btn" onclick="leaveSpectate()" class="hidden" style="padding:3px 8px; font-size:0.7rem;">🚪 관전 나가기</button>
         </div>
 
         <div class="board" id="game-board-area">
@@ -184,7 +185,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.19</div>
+<div class="version-badge">ver.21</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -531,13 +532,37 @@
             myRole = 'p1'; // 관전자는 내부적으로 p1 시점(위=P2, 아래=P1)으로 고정 렌더링
             document.getElementById('my-hand-section').classList.add('hidden');
             document.getElementById('emoji-bar-section').classList.add('hidden');
+            document.getElementById('leave-spectate-btn').classList.remove('hidden');
         } else {
             isSpectator = false;
             myRole = role;
             document.getElementById('my-hand-section').classList.remove('hidden');
             document.getElementById('emoji-bar-section').classList.remove('hidden');
+            document.getElementById('leave-spectate-btn').classList.add('hidden');
         }
     });
+
+    function leaveSpectate() {
+        if (currentRoom) {
+            socket.emit('leaveSpectate', { roomCode: currentRoom });
+        }
+        document.getElementById('game-screen').classList.add('hidden');
+        document.getElementById('lobby-screen').classList.remove('hidden');
+        document.getElementById('main-title').classList.remove('hidden');
+        document.getElementById('online-count-bar').classList.remove('hidden');
+        document.getElementById('leave-spectate-btn').classList.add('hidden');
+        document.body.classList.remove('in-game');
+
+        currentRoom = null;
+        isSpectator = false;
+        myRole = null;
+        hasCountedDown = false;
+        isCountingDownActive = false;
+        lockedRoundTurn = null;
+        lastHistoryLength = -1;
+
+        requestRoomList();
+    }
 
     socket.on('errorMsg', (msg) => { alert(msg); location.reload(); });
 
@@ -578,8 +603,10 @@
             document.getElementById('my-card-label').innerText = `${p1Nick} 낸 카드`;
             document.getElementById('opponent-card-label').innerText = `${p2Nick} 낸 카드`;
         } else {
-            document.getElementById('my-card-label').innerText = '내가 낸 카드';
-            document.getElementById('opponent-card-label').innerText = '상대방 낸 카드';
+            const myNick = isP1 ? p1Nick : p2Nick;
+            const oppNick = isP1 ? p2Nick : p1Nick;
+            document.getElementById('my-card-label').innerText = `내가 낸 카드 (${myNick})`;
+            document.getElementById('opponent-card-label').innerText = `상대방 낸 카드 (${oppNick})`;
         }
 
         document.getElementById('my-score').innerText = `${room.wins[myRole] || 0}승`;
@@ -604,7 +631,7 @@
         const oppHandCards = room.hands[oppRole];
         let oppWhiteCount = oppHandCards.filter(c => c % 2 !== 0).length;
         let oppBlackCount = oppHandCards.filter(c => c % 2 === 0).length;
-        const oppLabelName = isSpectator ? p2Nick : '상대';
+        const oppLabelName = isSpectator ? p2Nick : `상대(${isP1 ? p2Nick : p1Nick})`;
         document.getElementById('opp-hand-count').innerText = `${oppLabelName} 남은 손패: 백색 ${oppWhiteCount}장 / 검정 ${oppBlackCount}장`;
 
         const oppCard = isP1 ? room.selected.p2 : room.selected.p1;
