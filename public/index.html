@@ -184,7 +184,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.18</div>
+<div class="version-badge">ver.19</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -558,7 +558,11 @@
                 clearInterval(timer);
                 box.classList.add('hidden');
                 isCountingDownActive = false;
-                socket.emit('joinRoom', { roomCode: currentRoom, nickname: myNickname });
+                if (isSpectator) {
+                    socket.emit('spectateRoom', { roomCode: currentRoom, nickname: myNickname });
+                } else {
+                    socket.emit('joinRoom', { roomCode: currentRoom, nickname: myNickname });
+                }
             }
         }, 1000);
     }
@@ -643,22 +647,48 @@
                 const myIsOdd = (myCard % 2 !== 0);
                 const oIsOdd = (oCard % 2 !== 0);
 
-                let roundRes = "";
-                if (h.winner === myRole) roundRes = "<span style='color:#10b981'>승</span>";
-                else if (h.winner === null) roundRes = "<span style='color:#94a3b8'>무</span>";
-                else roundRes = "<span style='color:#ef4444'>패</span>";
-
                 const slot = document.createElement('div');
                 slot.className = 'history-slot';
-                slot.innerHTML = `
-                    <div style="font-size:0.65rem; color:#64748b; margin-bottom:2px; font-weight:bold;">
-                        ${index+1}턴: ${roundRes}
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
-                        <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${oIsOdd ? '#fff':'#000'}; color:${oIsOdd?'#000':'#fff'}; font-weight:bold;" title="상대 카드">?</div>
-                        <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${myIsOdd ? '#fff':'#000'}; color:${myIsOdd?'#000':'#fff'}; font-weight:bold;" title="내 카드">${myCard}</div>
-                    </div>
-                `;
+
+                if (isSpectator) {
+                    // 관전자: 양쪽 카드 숫자 공개 + 각 줄마다 승/패/무 표기
+                    const oResult = (h.winner === null) ? "<span style='color:#94a3b8'>무</span>"
+                        : (h.winner === oppRole ? "<span style='color:#10b981'>승</span>" : "<span style='color:#ef4444'>패</span>");
+                    const myResult = (h.winner === null) ? "<span style='color:#94a3b8'>무</span>"
+                        : (h.winner === myRole ? "<span style='color:#10b981'>승</span>" : "<span style='color:#ef4444'>패</span>");
+
+                    slot.innerHTML = `
+                        <div style="font-size:0.65rem; color:#64748b; margin-bottom:2px; font-weight:bold; text-align:center;">
+                            ${index+1}턴
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:3px;">
+                                <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${oIsOdd ? '#fff':'#000'}; color:${oIsOdd?'#000':'#fff'}; font-weight:bold;" title="상대 카드">${oCard}</div>
+                                <span style="font-size:0.65rem; font-weight:bold;">${oResult}</span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:3px;">
+                                <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${myIsOdd ? '#fff':'#000'}; color:${myIsOdd?'#000':'#fff'}; font-weight:bold;" title="내 카드">${myCard}</div>
+                                <span style="font-size:0.65rem; font-weight:bold;">${myResult}</span>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    let roundRes = "";
+                    if (h.winner === myRole) roundRes = "<span style='color:#10b981'>승</span>";
+                    else if (h.winner === null) roundRes = "<span style='color:#94a3b8'>무</span>";
+                    else roundRes = "<span style='color:#ef4444'>패</span>";
+
+                    slot.innerHTML = `
+                        <div style="font-size:0.65rem; color:#64748b; margin-bottom:2px; font-weight:bold;">
+                            ${index+1}턴: ${roundRes}
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
+                            <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${oIsOdd ? '#fff':'#000'}; color:${oIsOdd?'#000':'#fff'}; font-weight:bold;" title="상대 카드">?</div>
+                            <div style="font-size:0.75rem; width: 25px; height: 35px; border-radius:3px; display:flex; justify-content:center; align-items:center; border: 1px solid #555; background:${myIsOdd ? '#fff':'#000'}; color:${myIsOdd?'#000':'#fff'}; font-weight:bold;" title="내 카드">${myCard}</div>
+                        </div>
+                    `;
+                }
+
                 historyList.appendChild(slot);
             });
             historyList.scrollLeft = historyList.scrollWidth;
@@ -668,7 +698,9 @@
 
         if (isBothPlayersJoined && !hasCountedDown) {
             hasCountedDown = true;
-            startCountdown();
+            if (!isSpectator) {
+                startCountdown();
+            }
         }
 
         const handContainer = document.getElementById('my-hand');
