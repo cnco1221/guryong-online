@@ -156,11 +156,17 @@ io.on('connection', (socket) => {
         broadcastRoomList();
     });
 
-    socket.on('leaveSpectate', ({ roomCode } = {}) => {
-        if (!roomCode || typeof roomCode !== 'string') return;
+    socket.on('leaveSpectate', ({ roomCode } = {}, callback) => {
+        if (!roomCode || typeof roomCode !== 'string') {
+            if (typeof callback === 'function') callback();
+            return;
+        }
         roomCode = roomCode.trim().toUpperCase();
         const room = rooms[roomCode];
-        if (!room || !room.spectators) return;
+        if (!room || !room.spectators) {
+            if (typeof callback === 'function') callback();
+            return;
+        }
 
         const idx = room.spectators.indexOf(socket.id);
         if (idx !== -1) {
@@ -170,6 +176,47 @@ io.on('connection', (socket) => {
         socket.leave(roomCode);
         socket.data.isSpectator = false;
         broadcastRoomList();
+        if (typeof callback === 'function') callback();
+    });
+
+    // 게임이 시작되기 전(상대가 아직 입장하지 않은 상태)에만 플레이어가 방을 나갈 수 있음
+    socket.on('leaveRoom', ({ roomCode } = {}, callback) => {
+        if (!roomCode || typeof roomCode !== 'string') {
+            if (typeof callback === 'function') callback();
+            return;
+        }
+        roomCode = roomCode.trim().toUpperCase();
+        const room = rooms[roomCode];
+        if (!room) {
+            if (typeof callback === 'function') callback();
+            return;
+        }
+
+        const idx = room.players.indexOf(socket.id);
+        if (idx === -1) {
+            if (typeof callback === 'function') callback();
+            return; // 이 방의 플레이어가 아니면 무시 (관전자는 leaveSpectate 사용)
+        }
+
+        if (room.turn !== null) {
+            // room.turn은 두 플레이어가 모두 모이는 순간 배정됨 -> 이미 게임이 시작된 상태
+            // (버튼이 이 시점엔 숨겨져 있어야 하므로 정상 흐름에서는 거의 발생하지 않음)
+            socket.emit('errorMsg', '게임이 이미 시작되어 나갈 수 없습니다.');
+            if (typeof callback === 'function') callback();
+            return;
+        }
+
+        room.players.splice(idx, 1);
+        delete room.nicknames[socket.id];
+        socket.leave(roomCode);
+
+        if (room.players.length === 0 && (!room.spectators || room.spectators.length === 0)) {
+            delete rooms[roomCode];
+        } else {
+            io.to(roomCode).emit('updateState', room);
+        }
+        broadcastRoomList();
+        if (typeof callback === 'function') callback();
     });
 
     socket.on('selectCard', ({ roomCode, card }) => {
