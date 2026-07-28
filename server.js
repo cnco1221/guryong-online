@@ -209,9 +209,10 @@ io.on('connection', (socket) => {
 
                 setTimeout(() => {
                     io.to(roomCode).emit('gameOver', { winner: finalWinner, history: room.history });
+                    // 게임이 끝난 방은 즉시 제거 -> 다시 입장/관전 불가, 같은 코드로 새 방 생성 가능
+                    delete rooms[roomCode];
+                    broadcastRoomList();
                 }, 1000);
-
-                broadcastRoomList();
             } else {
                 // 라운드 승자가 다음 라운드 선공 (무승부 시 기존 선공 유지)
                 if (roundWinner) {
