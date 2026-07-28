@@ -10,6 +10,8 @@ app.use(express.static('public'));
 
 const rooms = {};
 const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 헷갈리는 0/O, 1/I 제외
+const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15분 동안 진행 없으면 자동 종료
+const INACTIVITY_CHECK_INTERVAL_MS = 30 * 1000; // 30초마다 점검
 
 function generateRoomCode() {
     let code;
@@ -28,6 +30,10 @@ function sanitizeNickname(nickname) {
     return trimmed.length > 0 ? trimmed : '익명';
 }
 
+function touchActivity(room) {
+    room.lastActivity = Date.now();
+}
+
 function createRoomEntry(roomCode) {
     rooms[roomCode] = {
         players: [],
@@ -42,7 +48,8 @@ function createRoomEntry(roomCode) {
         history: [],
         turn: null, // 현재 라운드의 선공 플레이어 ('p1' 또는 'p2')
         gameOver: false,
-        lastEmojiAt: {}
+        lastEmojiAt: {},
+        lastActivity: Date.now() // 마지막으로 "진행"(입장/카드 제출)이 있었던 시각
     };
 }
 
@@ -90,6 +97,7 @@ function joinRoomInternal(socket, roomCode, nickname) {
     room.nicknames[socket.id] = sanitizeNickname(nickname);
     socket.join(roomCode);
     socket.data.roomCode = roomCode;
+    touchActivity(room);
 
     const role = room.players[0] === socket.id ? 'p1' : 'p2';
     socket.emit('assignedRole', role);
@@ -148,6 +156,22 @@ io.on('connection', (socket) => {
         broadcastRoomList();
     });
 
+    socket.on('leaveSpectate', ({ roomCode } = {}) => {
+        if (!roomCode || typeof roomCode !== 'string') return;
+        roomCode = roomCode.trim().toUpperCase();
+        const room = rooms[roomCode];
+        if (!room || !room.spectators) return;
+
+        const idx = room.spectators.indexOf(socket.id);
+        if (idx !== -1) {
+            room.spectators.splice(idx, 1);
+            delete room.nicknames[socket.id];
+        }
+        socket.leave(roomCode);
+        socket.data.isSpectator = false;
+        broadcastRoomList();
+    });
+
     socket.on('selectCard', ({ roomCode, card }) => {
         const room = rooms[roomCode];
         if (!room || room.gameOver) return;
@@ -165,6 +189,7 @@ io.on('connection', (socket) => {
         }
 
         room.selected[role] = card;
+        touchActivity(room);
 
         // 양쪽 다 카드를 제출했을 경우 정산
         if (room.selected.p1 !== null && room.selected.p2 !== null) {
@@ -280,6 +305,26 @@ io.on('connection', (socket) => {
         broadcastOnlineCount();
     });
 });
+
+// 15분 이상 진행(입장/카드 제출)이 없는 방은 자동으로 종료
+function cleanupInactiveRooms() {
+    const now = Date.now();
+    let changed = false;
+
+    for (const roomCode in rooms) {
+        const room = rooms[roomCode];
+        const last = room.lastActivity || 0;
+        if (now - last >= INACTIVITY_LIMIT_MS) {
+            io.to(roomCode).emit('errorMsg', '15분 동안 진행이 없어 방이 자동으로 종료되었습니다.');
+            delete rooms[roomCode];
+            changed = true;
+        }
+    }
+
+    if (changed) broadcastRoomList();
+}
+
+setInterval(cleanupInactiveRooms, INACTIVITY_CHECK_INTERVAL_MS);
 
 server.listen(3000, () => {
     console.log('Server running on port 3000');
