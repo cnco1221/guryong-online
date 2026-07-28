@@ -9,6 +9,10 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
         html, body { height: 100%; }
         body { background-color: var(--bg); color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100dvh; padding: 8px; position: relative; transition: background-color 0.3s ease; }
+        /* 모바일 브라우저에서 전체화면 진입 시 100dvh 계산이 틀어지는 경우가 있어 100vh로 강제 재보정 */
+        body.is-fullscreen { min-height: 100vh; height: 100vh; }
+        body.is-fullscreen .container { max-height: 96vh; }
+        body.is-fullscreen.in-game .container { height: 96vh; max-height: 96vh; }
         
         .version-badge { position: absolute; bottom: 15px; right: 20px; font-size: 0.75rem; color: #64748b; font-weight: bold; }
 
@@ -62,7 +66,7 @@
         .emoji-btn.cooldown { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
         .emoji-btn .cooldown-num { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; font-size: 0.7rem; font-weight: bold; color: var(--primary); background: rgba(15,23,42,0.6); border-radius: 6px; }
 
-        .emoji-bubble { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; animation: bubblePop 0.25s ease; pointer-events: none; }
+        .emoji-bubble { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; animation: bubblePop 0.25s ease; pointer-events: none; z-index: 9999; }
         @keyframes bubblePop { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
         .emoji-bubble .bubble-inner { background: #f8fafc; border: 2px solid var(--primary); border-radius: 14px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
         .emoji-bubble .bubble-inner img { display: block; width: 112px; height: 112px; object-fit: contain; }
@@ -76,6 +80,7 @@
             .container { padding: 10px; gap: 6px; border-radius: 12px; }
             /* 게임화면일 때만(로비 화면 제외) 컨테이너가 화면을 더 채우도록 하여 위아래 여백을 줄임 */
             body.in-game .container { height: 97dvh; max-height: 97dvh; }
+            body.in-game .game-screen { justify-content: center; }
             .lobby, .game-screen { gap: 6px; }
             .board { padding: 6px; gap: 5px; }
             .card, .card-slot { width: 26px; height: 36px; font-size: 0.7rem; }
@@ -127,7 +132,7 @@
         <div style="position:relative; text-align:center; font-weight:bold; padding:0 50px;">
             <span id="room-text" style="color:var(--primary);">방 번호: -</span>
             <button id="leave-spectate-btn" onclick="leaveSpectate()" class="hidden" style="padding:3px 8px; font-size:0.7rem; margin-left:6px;">🚪 관전 나가기</button>
-            <span id="spectator-count-badge" style="position:absolute; right:0; top:50%; transform:translateY(-50%); font-size:0.72rem; color:#94a3b8; font-weight:normal;">👀 0명</span>
+            <span id="spectator-count-badge" style="position:absolute; left:0; top:50%; transform:translateY(-50%); font-size:0.72rem; color:#94a3b8; font-weight:normal;">👀 0명</span>
         </div>
 
         <div class="board" id="game-board-area">
@@ -143,7 +148,7 @@
                 <div style="font-size: 0.8rem; color: #f8fafc; font-weight: bold; margin-top: 5px; text-align: left; width: 100%;">전체 턴 기록 (상대방 카드 공개)</div>
                 <div id="game-over-history" style="display: flex; gap: 6px; overflow-x: auto; width: 100%; padding: 5px 0; justify-content: flex-start;"></div>
 
-                <button onclick="location.reload()" style="margin-top: 10px; padding: 6px 15px;">새 게임 시작하기</button>
+                <button onclick="returnToLobby()" style="margin-top: 10px; padding: 6px 15px;">🚪 방 나가기</button>
             </div>
 
             <div id="opponent-card-area" class="card-row">
@@ -195,7 +200,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.25</div>
+<div class="version-badge">ver.27</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -218,8 +223,9 @@
 
     function updateFullscreenBtn() {
         const btn = document.getElementById('fullscreen-btn');
-        if (!btn) return;
         const isFull = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+        document.body.classList.toggle('is-fullscreen', !!isFull);
+        if (!btn) return;
         btn.innerText = isFull ? '⤢' : '⛶';
         btn.title = isFull ? '전체화면 종료' : '전체화면';
     }
@@ -469,14 +475,7 @@
 
     socket.on('joinError', (msg) => {
         alert(msg);
-        document.getElementById('game-screen').classList.add('hidden');
-        document.getElementById('lobby-screen').classList.remove('hidden');
-        document.getElementById('main-title').classList.remove('hidden');
-        document.getElementById('online-count-bar').classList.remove('hidden');
-        document.body.classList.remove('in-game');
-        currentRoom = null;
-        isSpectator = false;
-        requestRoomList();
+        returnToLobby();
     });
 
     // ===== 접속자 수 / 방 목록 =====
@@ -564,10 +563,7 @@
         }
     });
 
-    function leaveSpectate() {
-        if (currentRoom) {
-            socket.emit('leaveSpectate', { roomCode: currentRoom });
-        }
+    function returnToLobby() {
         document.getElementById('game-screen').classList.add('hidden');
         document.getElementById('lobby-screen').classList.remove('hidden');
         document.getElementById('main-title').classList.remove('hidden');
@@ -578,12 +574,23 @@
         currentRoom = null;
         isSpectator = false;
         myRole = null;
+        isGameOver = false;
         hasCountedDown = false;
         isCountingDownActive = false;
         lockedRoundTurn = null;
         lastHistoryLength = -1;
+        myLastSelectedCard = null;
+
+        document.getElementById('game-over-box').classList.add('hidden');
 
         requestRoomList();
+    }
+
+    function leaveSpectate() {
+        if (currentRoom) {
+            socket.emit('leaveSpectate', { roomCode: currentRoom });
+        }
+        returnToLobby();
     }
 
     socket.on('errorMsg', (msg) => { alert(msg); location.reload(); });
