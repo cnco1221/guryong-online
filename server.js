@@ -11,6 +11,8 @@ app.use(express.static('public'));
 const rooms = {};
 const TURN_SECONDS = 20;
 const EMOJI_COUNT = 4; // public/emojis/e1.png ~ e4.png
+const EMOJI_COOLDOWN_MS = 5000;
+const lastEmojiAt = new Map(); // socket.id -> timestamp
 
 function clearRoomTimer(room) {
     if (room.timerHandle) {
@@ -180,10 +182,16 @@ io.on('connection', (socket) => {
         const role = room.players[0] === socket.id ? 'p1' : (room.players[1] === socket.id ? 'p2' : null);
         if (!role) return;
 
+        const now = Date.now();
+        const last = lastEmojiAt.get(socket.id) || 0;
+        if (now - last < EMOJI_COOLDOWN_MS) return;
+        lastEmojiAt.set(socket.id, now);
+
         io.to(roomCode).emit('emojiReceived', { role, emojiId: id });
     });
 
     socket.on('disconnect', () => {
+        lastEmojiAt.delete(socket.id);
         for (const roomCode in rooms) {
             const room = rooms[roomCode];
             const index = room.players.indexOf(socket.id);
