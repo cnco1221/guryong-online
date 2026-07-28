@@ -7,29 +7,34 @@
     <style>
         :root { --bg: #0f172a; --panel: #1e293b; --border: #334155; --primary: #f59e0b; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
-        body { background-color: var(--bg); color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; position: relative; transition: background-color 0.3s ease; }
+        html, body { height: 100%; }
+        body { background-color: var(--bg); color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100dvh; padding: 8px; position: relative; transition: background-color 0.3s ease; }
         
         .version-badge { position: absolute; bottom: 15px; right: 20px; font-size: 0.75rem; color: #64748b; font-weight: bold; }
 
-        .container { width: 95%; max-width: 600px; background: var(--panel); border: 2px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 15px; }
-        .lobby, .game-screen { display: flex; flex-direction: column; gap: 15px; }
+        h1 { font-size: 1.3rem; text-align: center; }
+
+        .fullscreen-btn { position: fixed; top: 8px; right: 8px; z-index: 50; width: 34px; height: 34px; border-radius: 8px; background: var(--panel); border: 1px solid var(--border); color: var(--primary); font-size: 1.1rem; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; line-height: 1; }
+
+        .container { width: 95%; max-width: 600px; max-height: 96dvh; overflow-y: auto; background: var(--panel); border: 2px solid var(--border); border-radius: 16px; padding: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 10px; }
+        .lobby, .game-screen { display: flex; flex-direction: column; gap: 10px; }
         .hidden { display: none !important; }
         input { padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: white; font-size: 1rem; }
         button { background: var(--primary); color: #000; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         
-        .board { background: #0f172a; border: 2px dashed var(--border); border-radius: 10px; padding: 15px; display: flex; flex-direction: column; align-items: center; gap: 12px; position: relative; overflow-x: hidden; }
+        .board { background: #0f172a; border: 2px dashed var(--border); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; overflow-x: hidden; }
         
-        .history-container { display: flex; gap: 8px; overflow-x: auto; width: 100%; padding: 5px 0; min-height: 80px; align-items: center; justify-content: flex-start; }
-        .history-slot { display: flex; flex-direction: column; gap: 3px; align-items: center; background: #1e293b; border: 1px solid var(--border); padding: 5px 8px; border-radius: 6px; min-width: 50px; flex-shrink: 0; }
+        .history-container { display: flex; gap: 6px; overflow-x: auto; width: 100%; padding: 4px 0; min-height: 56px; align-items: center; justify-content: flex-start; }
+        .history-slot { display: flex; flex-direction: column; gap: 3px; align-items: center; background: #1e293b; border: 1px solid var(--border); padding: 4px 6px; border-radius: 6px; min-width: 42px; flex-shrink: 0; }
 
-        .card { width: 35px; height: 50px; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.9rem; cursor: pointer; border: 2px solid #555; }
+        .card { width: 32px; height: 44px; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.85rem; cursor: pointer; border: 2px solid #555; }
         .card-odd { background: #ffffff; color: #0f172a; } 
         .card-even { background: #000000; color: #ffffff; border-color: #555; } 
         .card.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
         
-        .card-slot { width: 35px; height: 50px; border: 2px solid var(--border); border-radius: 4px; display: flex; justify-content: center; align-items: center; background: #1e293b; font-weight: bold; font-size: 0.9rem; }
+        .card-slot { width: 32px; height: 44px; border: 2px solid var(--border); border-radius: 4px; display: flex; justify-content: center; align-items: center; background: #1e293b; font-weight: bold; font-size: 0.85rem; }
         
-        .hand { display: flex; gap: 6px; justify-content: center; }
+        .hand { display: flex; gap: 5px; justify-content: center; }
 
         .countdown-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.92); border-radius: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px; z-index: 20; text-align: center; }
         .countdown-number { font-size: 4rem; font-weight: bold; color: var(--primary); animation: popScale 1s infinite; }
@@ -39,16 +44,16 @@
 
         .card-row { display: flex; align-items: center; width: 100%; gap: 4px; }
         .side-col { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; }
-        .center-col { flex: 0 0 auto; max-width: 55%; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; }
+        .center-col { flex: 0 0 200px; width: 200px; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
         .center-col span { word-break: keep-all; }
-        .score-num { font-size: 2rem; font-weight: bold; color: var(--primary); line-height: 1; }
+        .score-num { font-size: 1.7rem; font-weight: bold; color: var(--primary); line-height: 1; }
 
-        .emoji-bar { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-        .emoji-btn { position: relative; width: 68px; height: 68px; padding: 3px; border-radius: 6px; background: #1e293b; border: 1px solid var(--border); cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.1s ease, opacity 0.2s ease; }
+        .emoji-bar { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+        .emoji-btn { position: relative; width: 30px; height: 30px; padding: 2px; border-radius: 6px; background: #1e293b; border: 1px solid var(--border); cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.1s ease, opacity 0.2s ease; }
         .emoji-btn img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
         .emoji-btn:hover { transform: scale(1.08); border-color: var(--primary); }
         .emoji-btn.cooldown { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
-        .emoji-btn .cooldown-num { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; font-size: 1.1rem; font-weight: bold; color: var(--primary); background: rgba(15,23,42,0.6); border-radius: 6px; }
+        .emoji-btn .cooldown-num { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; font-size: 0.7rem; font-weight: bold; color: var(--primary); background: rgba(15,23,42,0.6); border-radius: 6px; }
 
         .emoji-bubble { display: flex; flex-direction: column; align-items: center; animation: bubblePop 0.25s ease; pointer-events: none; }
         @keyframes bubblePop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
@@ -56,9 +61,31 @@
         .emoji-bubble .bubble-inner img { display: block; width: 112px; height: 112px; object-fit: contain; }
         .emoji-bubble.fade-out { animation: bubbleFade 0.3s ease forwards; }
         @keyframes bubbleFade { to { opacity: 0; transform: scale(0.8); } }
+
+        /* 모바일 화면 최적화: 한 화면에 모든 콘텐츠가 들어가도록 여백/크기 축소 */
+        @media (max-width: 480px), (max-height: 760px) {
+            body { padding: 4px; }
+            h1 { font-size: 1.05rem; }
+            .container { padding: 10px; gap: 6px; max-height: 98dvh; border-radius: 12px; }
+            .lobby, .game-screen { gap: 6px; }
+            .board { padding: 6px; gap: 5px; }
+            .card, .card-slot { width: 26px; height: 36px; font-size: 0.7rem; }
+            .hand { gap: 3px; }
+            .history-container { min-height: 40px; padding: 2px 0; }
+            .history-slot { padding: 3px 4px; min-width: 34px; }
+            .center-col { width: 150px; flex: 0 0 150px; gap: 2px; }
+            .center-col span { font-size: 0.68rem !important; }
+            .score-num { font-size: 1.25rem; }
+            .emoji-btn { width: 24px; height: 24px; }
+            .emoji-bubble .bubble-inner img { width: 84px; height: 84px; }
+            #status-msg { font-size: 0.75rem !important; }
+            hr { margin: 2px 0 !important; }
+        }
     </style>
 </head>
 <body>
+
+<button id="fullscreen-btn" class="fullscreen-btn" onclick="toggleFullscreen()" title="전체화면">⛶</button>
 
 <div class="container">
     <h1 id="main-title">🐉 방랑단과 구룡투</h1>
@@ -142,6 +169,34 @@
 <script src="/socket.io/socket.io.js"></script>
 <script>
     const socket = io();
+
+    // ===== 전체화면 기능 =====
+    function toggleFullscreen() {
+        const el = document.documentElement;
+        const isFull = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+        if (!isFull) {
+            if (el.requestFullscreen) el.requestFullscreen();
+            else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+            else if (el.msRequestFullscreen) el.msRequestFullscreen();
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            else if (document.msExitFullscreen) document.msExitFullscreen();
+        }
+    }
+
+    function updateFullscreenBtn() {
+        const btn = document.getElementById('fullscreen-btn');
+        if (!btn) return;
+        const isFull = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+        btn.innerText = isFull ? '⤢' : '⛶';
+        btn.title = isFull ? '전체화면 종료' : '전체화면';
+    }
+
+    document.addEventListener('fullscreenchange', updateFullscreenBtn);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
+    document.addEventListener('msfullscreenchange', updateFullscreenBtn);
+    // ===== 전체화면 기능 끝 =====
     let myRole = null;
     let currentRoom = null;
     let myLastSelectedCard = null;
