@@ -165,6 +165,11 @@
                 <div class="side-col" id="opponent-emoji-slot"></div>
             </div>
 
+            <div id="spectator-p2-hand-wrap" class="hidden" style="width:100%; text-align:center;">
+                <div id="spectator-p2-hand-label" style="font-size:0.7rem; color:#94a3b8; margin-bottom:3px;">P2 손패</div>
+                <div id="spectator-p2-hand" class="hand" style="justify-content:center; flex-wrap:wrap;"></div>
+            </div>
+
             <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
 
             <div style="font-size:0.8rem; color:#94a3b8; font-weight:bold; width: 100%; text-align: left;">이전 턴 기록</div>
@@ -185,6 +190,11 @@
                 </div>
                 <div class="side-col" id="my-emoji-slot"></div>
             </div>
+
+            <div id="spectator-p1-hand-wrap" class="hidden" style="width:100%; text-align:center;">
+                <div id="spectator-p1-hand-label" style="font-size:0.7rem; color:#94a3b8; margin-bottom:3px;">P1 손패</div>
+                <div id="spectator-p1-hand" class="hand" style="justify-content:center; flex-wrap:wrap;"></div>
+            </div>
         </div>
 
         <div id="status-msg" style="text-align:center; color:#94a3b8; font-size:0.95rem;">상대방을 기다리는 중입니다...</div>
@@ -194,13 +204,6 @@
             <div id="my-hand" class="hand"></div>
         </div>
 
-        <div id="spectator-hands-section" class="hidden">
-            <div id="spectator-p2-hand-label" style="font-size:0.8rem; margin-bottom:4px; text-align:center; color:#94a3b8;">P2 손패</div>
-            <div id="spectator-p2-hand" class="hand"></div>
-            <div id="spectator-p1-hand-label" style="font-size:0.8rem; margin:8px 0 4px; text-align:center; color:#94a3b8;">P1 손패</div>
-            <div id="spectator-p1-hand" class="hand"></div>
-        </div>
-
         <div id="emoji-bar-section">
             <div style="font-size:0.75rem; margin-bottom:5px; color:#94a3b8; text-align:center;">이모티콘</div>
             <div id="emoji-bar" class="emoji-bar"></div>
@@ -208,7 +211,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.29</div>
+<div class="version-badge">ver.30</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -575,14 +578,16 @@
             isSpectator = true;
             myRole = 'p1'; // 관전자는 내부적으로 p1 시점(위=P2, 아래=P1)으로 고정 렌더링
             document.getElementById('my-hand-section').classList.add('hidden');
-            document.getElementById('spectator-hands-section').classList.remove('hidden');
+            document.getElementById('spectator-p2-hand-wrap').classList.remove('hidden');
+            document.getElementById('spectator-p1-hand-wrap').classList.remove('hidden');
             document.getElementById('emoji-bar-section').classList.add('hidden');
             document.getElementById('leave-spectate-btn').classList.remove('hidden');
         } else {
             isSpectator = false;
             myRole = role;
             document.getElementById('my-hand-section').classList.remove('hidden');
-            document.getElementById('spectator-hands-section').classList.add('hidden');
+            document.getElementById('spectator-p2-hand-wrap').classList.add('hidden');
+            document.getElementById('spectator-p1-hand-wrap').classList.add('hidden');
             document.getElementById('emoji-bar-section').classList.remove('hidden');
             document.getElementById('leave-spectate-btn').classList.add('hidden');
         }
@@ -614,16 +619,22 @@
 
     function leaveSpectate() {
         if (currentRoom) {
-            socket.emit('leaveSpectate', { roomCode: currentRoom });
+            socket.emit('leaveSpectate', { roomCode: currentRoom }, () => {
+                returnToLobby();
+            });
+        } else {
+            returnToLobby();
         }
-        returnToLobby();
     }
 
     function leaveRoom() {
         if (currentRoom) {
-            socket.emit('leaveRoom', { roomCode: currentRoom });
+            socket.emit('leaveRoom', { roomCode: currentRoom }, () => {
+                returnToLobby();
+            });
+        } else {
+            returnToLobby();
         }
-        returnToLobby();
     }
 
     socket.on('errorMsg', (msg) => { alert(msg); location.reload(); });
