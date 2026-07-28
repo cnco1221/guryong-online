@@ -66,7 +66,7 @@
         .emoji-btn.cooldown { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
         .emoji-btn .cooldown-num { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; font-size: 0.7rem; font-weight: bold; color: var(--primary); background: rgba(15,23,42,0.6); border-radius: 6px; }
 
-        .emoji-bubble { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; animation: bubblePop 0.25s ease; pointer-events: none; z-index: 9999; }
+        .emoji-bubble { position: absolute; top: 50%; left: calc(50% - 14px); transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; animation: bubblePop 0.25s ease; pointer-events: none; z-index: 9999; }
         @keyframes bubblePop { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
         .emoji-bubble .bubble-inner { background: #f8fafc; border: 2px solid var(--primary); border-radius: 14px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
         .emoji-bubble .bubble-inner img { display: block; width: 112px; height: 112px; object-fit: contain; }
@@ -113,7 +113,10 @@
 
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
             <span style="font-weight:bold; font-size:0.85rem; color:#94a3b8;">📋 방 목록</span>
-            <button onclick="requestRoomList()" style="padding:3px 8px; font-size:0.7rem;">🔄 새로고침</button>
+            <div style="display:flex; gap:6px;">
+                <button onclick="openRulesModal()" style="padding:3px 8px; font-size:0.7rem;">📖 게임하는 방법</button>
+                <button onclick="requestRoomList()" style="padding:3px 8px; font-size:0.7rem;">🔄 새로고침</button>
+            </div>
         </div>
         <div id="room-list-box" style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto;">
             <div style="text-align:center; color:#64748b; font-size:0.8rem; padding:10px;">방 목록을 불러오는 중...</div>
@@ -211,7 +214,21 @@
     </div>
 </div>
 
-<div class="version-badge">ver.30</div>
+<div class="version-badge">ver.31</div>
+
+<div id="rules-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;">
+        <h2 style="color:var(--primary); margin-bottom:14px; font-size:1.05rem;">🐉 구룡투 게임 방법</h2>
+        <ol style="padding-left:18px; display:flex; flex-direction:column; gap:10px; font-size:0.85rem; line-height:1.5; color:#e2e8f0;">
+            <li>카드는 1~9까지 있으며, <strong>홀수는 흰색</strong>, <strong>짝수는 검정색</strong> 카드예요.</li>
+            <li>매 라운드마다 서로 카드를 하나씩 내고, <strong>더 높은 숫자를 낸 쪽이 그 라운드를 승리</strong>해요.</li>
+            <li>⚡ 특수 규칙: <strong>1은 9를 이길 수 있어요.</strong> 가장 낮은 숫자가 가장 높은 숫자를 잡는 유일한 반전 카드예요.</li>
+            <li>총 9라운드를 진행하며, <strong>먼저 5라운드를 이기면 즉시 승리</strong>해요. 5승자 없이 9라운드가 모두 끝나면 <strong>더 많은 라운드를 이긴 쪽이 승리</strong>해요.</li>
+            <li>매 라운드는 <strong>선공이 먼저 카드를 내고, 후공이 이어서 냅니다.</strong> <strong>직전 라운드 승자가 다음 라운드의 선공</strong>이 돼요.</li>
+        </ol>
+        <button onclick="closeRulesModal()" style="margin-top:16px; width:100%;">닫기</button>
+    </div>
+</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -511,6 +528,14 @@
 
     function requestRoomList() {
         socket.emit('getRoomList');
+    }
+
+    function openRulesModal() {
+        document.getElementById('rules-modal').classList.remove('hidden');
+    }
+
+    function closeRulesModal() {
+        document.getElementById('rules-modal').classList.add('hidden');
     }
 
     function renderRoomList(list) {
