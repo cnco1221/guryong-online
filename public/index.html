@@ -34,6 +34,7 @@
         .card.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
         
         .card-slot { width: 32px; height: 44px; border: 2px solid var(--border); border-radius: 4px; display: flex; justify-content: center; align-items: center; background: #1e293b; font-weight: bold; font-size: 0.85rem; }
+        .card-slot.card-back { background: repeating-linear-gradient(45deg, #4338ca, #4338ca 4px, #3730a3 4px, #3730a3 8px); color: #ffffff; border-color: #6366f1; }
         
         .hand { display: flex; gap: 5px; justify-content: center; }
 
@@ -48,6 +49,11 @@
         .center-col { flex: 0 0 200px; width: 200px; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
         .center-col span { word-break: keep-all; }
         .score-num { font-size: 1.7rem; font-weight: bold; color: var(--primary); line-height: 1; }
+
+        .nick-badge { display: inline-block; padding: 2px 10px; border: 1px solid var(--primary); border-radius: 12px; font-size: 0.72rem; font-weight: bold; color: var(--primary); background: rgba(245, 158, 11, 0.08); }
+
+        .count-white { color: #ffffff; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; font-weight: bold; }
+        .count-black { color: #000000; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; font-weight: bold; }
 
         .emoji-bar { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
         .emoji-btn { position: relative; width: 30px; height: 30px; padding: 2px; border-radius: 6px; background: #1e293b; border: 1px solid var(--border); cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.1s ease, opacity 0.2s ease; }
@@ -85,6 +91,7 @@
             #status-msg { font-size: 0.75rem !important; }
             hr { margin: 2px 0 !important; }
         }
+
     </style>
 </head>
 <body>
@@ -144,9 +151,10 @@
                     <div id="opp-score" class="score-num">0승</div>
                 </div>
                 <div class="center-col">
+                    <span id="opponent-nick-badge" class="nick-badge hidden">상대</span>
                     <span id="opponent-card-label" style="font-size: 0.85rem; color: #94a3b8;">상대방 낸 카드</span>
                     <div id="slot-opponent" class="card-slot">-</div>
-                    <span id="opp-hand-count" style="color:#f59e0b; font-size: 0.8rem; font-weight:bold;">상대 남은 손패: 백색 5장, 검정 4장</span>
+                    <span id="opp-hand-count" style="color:#f59e0b; font-size: 0.8rem; font-weight:bold; text-align:center; line-height:1.4;">상대 남은 손패: 백색 5장, 검정 4장</span>
                 </div>
                 <div class="side-col" id="opponent-emoji-slot"></div>
             </div>
@@ -167,6 +175,7 @@
                 <div class="center-col">
                     <div id="slot-my" class="card-slot">-</div>
                     <span id="my-card-label" style="font-size: 0.85rem; color: #94a3b8;">내가 낸 카드</span>
+                    <span id="my-nick-badge" class="nick-badge hidden">나</span>
                 </div>
                 <div class="side-col" id="my-emoji-slot"></div>
             </div>
@@ -186,7 +195,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.22</div>
+<div class="version-badge">ver.25</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -230,6 +239,7 @@
     function boldNick(nick) {
         return `<strong>${escapeHtml(nick)}</strong>`;
     }
+
     let isSpectator = false;
     let currentRoom = null;
     let myLastSelectedCard = null;
@@ -617,11 +627,21 @@
         if (isSpectator) {
             document.getElementById('my-card-label').innerHTML = `${boldNick(p1Nick)} 낸 카드`;
             document.getElementById('opponent-card-label').innerHTML = `${boldNick(p2Nick)} 낸 카드`;
+            document.getElementById('opponent-nick-badge').classList.add('hidden');
+            document.getElementById('my-nick-badge').classList.add('hidden');
         } else {
             const myNick = isP1 ? p1Nick : p2Nick;
             const oppNick = isP1 ? p2Nick : p1Nick;
-            document.getElementById('my-card-label').innerHTML = `내가 낸 카드 (${boldNick(myNick)})`;
-            document.getElementById('opponent-card-label').innerHTML = `상대방 낸 카드 (${boldNick(oppNick)})`;
+            document.getElementById('my-card-label').innerHTML = '내가 낸 카드';
+            document.getElementById('opponent-card-label').innerHTML = '상대방 낸 카드';
+
+            const oppBadge = document.getElementById('opponent-nick-badge');
+            oppBadge.innerText = oppNick;
+            oppBadge.classList.remove('hidden');
+
+            const myBadge = document.getElementById('my-nick-badge');
+            myBadge.innerText = myNick;
+            myBadge.classList.remove('hidden');
         }
 
         document.getElementById('my-score').innerText = `${room.wins[myRole] || 0}승`;
@@ -643,38 +663,74 @@
             myLastSelectedCard = null;
         }
 
-        const oppHandCards = room.hands[oppRole];
-        let oppWhiteCount = oppHandCards.filter(c => c % 2 !== 0).length;
-        let oppBlackCount = oppHandCards.filter(c => c % 2 === 0).length;
-        const oppLabelName = isSpectator ? boldNick(p2Nick) : '상대';
-        document.getElementById('opp-hand-count').innerHTML = `${oppLabelName} 남은 손패: 백색 ${oppWhiteCount}장 / 검정 ${oppBlackCount}장`;
-
-        const oppCard = isP1 ? room.selected.p2 : room.selected.p1;
-        const oppSlot = document.getElementById('slot-opponent');
-        oppSlot.className = 'card-slot';
-        
-        if (oppCard !== null) {
-            const isOdd = (oppCard % 2 !== 0);
-            oppSlot.innerText = '?';
-            oppSlot.style.backgroundColor = isOdd ? '#ffffff' : '#000000';
-            oppSlot.style.color = isOdd ? '#0f172a' : '#ffffff';
+        const oppHandCountEl = document.getElementById('opp-hand-count');
+        if (isSpectator) {
+            // 관전자에게는 남은 손패 정보를 표시하지 않음
+            oppHandCountEl.classList.add('hidden');
         } else {
-            oppSlot.innerText = '-';
-            oppSlot.style.backgroundColor = '#1e293b';
-            oppSlot.style.color = '#f8fafc';
+            oppHandCountEl.classList.remove('hidden');
+            const oppHandCards = room.hands[oppRole];
+            let oppWhiteCount = oppHandCards.filter(c => c % 2 !== 0).length;
+            let oppBlackCount = oppHandCards.filter(c => c % 2 === 0).length;
+            oppHandCountEl.innerHTML = `상대 남은 손패<br><span class="count-white">백색 ${oppWhiteCount}장</span> / <span class="count-black">검정 ${oppBlackCount}장</span>`;
         }
 
+        const oppSlot = document.getElementById('slot-opponent');
         const mySlot = document.getElementById('slot-my');
-        mySlot.className = 'card-slot';
-        if (myLastSelectedCard !== null) {
-            const isOdd = (myLastSelectedCard % 2 !== 0);
-            mySlot.innerText = myLastSelectedCard;
-            mySlot.style.backgroundColor = isOdd ? '#ffffff' : '#000000';
-            mySlot.style.color = isOdd ? '#0f172a' : '#ffffff';
+
+        if (isSpectator) {
+            // 관전자는 두 플레이어의 현재 낸 카드를 뒷면(비공개)으로만 확인 가능
+            const p2Selected = room.selected.p2;
+            oppSlot.className = 'card-slot';
+            if (p2Selected !== null) {
+                oppSlot.classList.add('card-back');
+                oppSlot.innerText = '?';
+                oppSlot.style.backgroundColor = '';
+                oppSlot.style.color = '';
+            } else {
+                oppSlot.innerText = '-';
+                oppSlot.style.backgroundColor = '#1e293b';
+                oppSlot.style.color = '#f8fafc';
+            }
+
+            const p1Selected = room.selected.p1;
+            mySlot.className = 'card-slot';
+            if (p1Selected !== null) {
+                mySlot.classList.add('card-back');
+                mySlot.innerText = '?';
+                mySlot.style.backgroundColor = '';
+                mySlot.style.color = '';
+            } else {
+                mySlot.innerText = '-';
+                mySlot.style.backgroundColor = '#1e293b';
+                mySlot.style.color = '#f8fafc';
+            }
         } else {
-            mySlot.innerText = '-';
-            mySlot.style.backgroundColor = '#1e293b';
-            mySlot.style.color = '#f8fafc';
+            const oppCard = isP1 ? room.selected.p2 : room.selected.p1;
+            oppSlot.className = 'card-slot';
+
+            if (oppCard !== null) {
+                const isOdd = (oppCard % 2 !== 0);
+                oppSlot.innerText = '?';
+                oppSlot.style.backgroundColor = isOdd ? '#ffffff' : '#000000';
+                oppSlot.style.color = isOdd ? '#0f172a' : '#ffffff';
+            } else {
+                oppSlot.innerText = '-';
+                oppSlot.style.backgroundColor = '#1e293b';
+                oppSlot.style.color = '#f8fafc';
+            }
+
+            mySlot.className = 'card-slot';
+            if (myLastSelectedCard !== null) {
+                const isOdd = (myLastSelectedCard % 2 !== 0);
+                mySlot.innerText = myLastSelectedCard;
+                mySlot.style.backgroundColor = isOdd ? '#ffffff' : '#000000';
+                mySlot.style.color = isOdd ? '#0f172a' : '#ffffff';
+            } else {
+                mySlot.innerText = '-';
+                mySlot.style.backgroundColor = '#1e293b';
+                mySlot.style.color = '#f8fafc';
+            }
         }
 
         const historyList = document.getElementById('history-list');
