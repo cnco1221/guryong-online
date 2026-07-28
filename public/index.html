@@ -17,7 +17,7 @@
         input { padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: white; font-size: 1rem; }
         button { background: var(--primary); color: #000; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         
-        .board { background: #0f172a; border: 2px dashed var(--border); border-radius: 10px; padding: 15px; display: flex; flex-direction: column; align-items: center; gap: 12px; position: relative; }
+        .board { background: #0f172a; border: 2px dashed var(--border); border-radius: 10px; padding: 15px; display: flex; flex-direction: column; align-items: center; gap: 12px; position: relative; overflow-x: hidden; }
         
         .history-container { display: flex; gap: 8px; overflow-x: auto; width: 100%; padding: 5px 0; min-height: 80px; align-items: center; justify-content: flex-start; }
         .history-slot { display: flex; flex-direction: column; gap: 3px; align-items: center; background: #1e293b; border: 1px solid var(--border); padding: 5px 8px; border-radius: 6px; min-width: 50px; flex-shrink: 0; }
@@ -37,20 +37,25 @@
 
         .game-over-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.96); border-radius: 10px; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; gap: 10px; z-index: 10; padding: 20px; text-align: center; overflow-y: auto; }
 
+        .card-row { display: flex; align-items: center; width: 100%; gap: 4px; }
+        .side-col { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; }
+        .center-col { flex: 0 0 auto; max-width: 55%; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; }
+        .center-col span { word-break: keep-all; }
+        .score-num { font-size: 2rem; font-weight: bold; color: var(--primary); line-height: 1; }
+
         .emoji-bar { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-        .emoji-btn { position: relative; width: 34px; height: 34px; padding: 2px; border-radius: 6px; background: #1e293b; border: 1px solid var(--border); cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.1s ease, opacity 0.2s ease; }
+        .emoji-btn { position: relative; width: 68px; height: 68px; padding: 3px; border-radius: 6px; background: #1e293b; border: 1px solid var(--border); cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.1s ease, opacity 0.2s ease; }
         .emoji-btn img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
         .emoji-btn:hover { transform: scale(1.08); border-color: var(--primary); }
         .emoji-btn.cooldown { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
-        .emoji-btn .cooldown-num { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; font-size: 0.8rem; font-weight: bold; color: var(--primary); background: rgba(15,23,42,0.6); border-radius: 6px; }
+        .emoji-btn .cooldown-num { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; font-size: 1.1rem; font-weight: bold; color: var(--primary); background: rgba(15,23,42,0.6); border-radius: 6px; }
 
-        .emoji-bubble { position: absolute; top: -70px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; flex-direction: column; align-items: center; animation: bubblePop 0.25s ease; pointer-events: none; }
-        @keyframes bubblePop { 0% { transform: translateX(-50%) scale(0.5); opacity: 0; } 100% { transform: translateX(-50%) scale(1); opacity: 1; } }
-        .emoji-bubble .bubble-inner { background: #f8fafc; border: 2px solid var(--primary); border-radius: 14px; padding: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
-        .emoji-bubble .bubble-inner img { display: block; width: 56px; height: 56px; object-fit: contain; }
-        .emoji-bubble .bubble-tail { width: 14px; height: 14px; background: #f8fafc; border-right: 2px solid var(--primary); border-bottom: 2px solid var(--primary); transform: rotate(45deg); margin-top: -8px; }
+        .emoji-bubble { display: flex; flex-direction: column; align-items: center; animation: bubblePop 0.25s ease; pointer-events: none; }
+        @keyframes bubblePop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .emoji-bubble .bubble-inner { background: #f8fafc; border: 2px solid var(--primary); border-radius: 14px; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+        .emoji-bubble .bubble-inner img { display: block; width: 112px; height: 112px; object-fit: contain; }
         .emoji-bubble.fade-out { animation: bubbleFade 0.3s ease forwards; }
-        @keyframes bubbleFade { to { opacity: 0; transform: translateX(-50%) scale(0.8); } }
+        @keyframes bubbleFade { to { opacity: 0; transform: scale(0.8); } }
     </style>
 </head>
 <body>
@@ -65,9 +70,8 @@
     </div>
 
     <div id="game-screen" class="game-screen hidden">
-        <div style="display:flex; justify-content:space-between; font-weight:bold;">
-            <span id="role-text" style="color:var(--primary);">역할: 대기중</span>
-            <span>스코어 - P1: <span id="p1-score">0</span>승 / P2: <span id="p2-score">0</span>승</span>
+        <div style="text-align:center; font-weight:bold;">
+            <span id="room-text" style="color:var(--primary);">방 번호: -</span>
         </div>
 
         <div class="board" id="game-board-area">
@@ -86,10 +90,16 @@
                 <button onclick="location.reload()" style="margin-top: 10px; padding: 6px 15px;">새 게임 시작하기</button>
             </div>
 
-            <div id="opponent-card-area" style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%; position:relative;">
-                <span style="font-size: 0.85rem; color: #94a3b8;">상대방 낸 카드</span>
-                <div id="slot-opponent" class="card-slot">-</div>
-                <span id="opp-hand-count" style="color:#f59e0b; font-size: 0.8rem; font-weight:bold;">상대 남은 손패: 백색 5장, 검정 4장</span>
+            <div id="opponent-card-area" class="card-row">
+                <div class="side-col" id="opponent-score-col">
+                    <div id="opp-score" class="score-num">0</div>
+                </div>
+                <div class="center-col">
+                    <span style="font-size: 0.85rem; color: #94a3b8;">상대방 낸 카드</span>
+                    <div id="slot-opponent" class="card-slot">-</div>
+                    <span id="opp-hand-count" style="color:#f59e0b; font-size: 0.8rem; font-weight:bold;">상대 남은 손패: 백색 5장, 검정 4장</span>
+                </div>
+                <div class="side-col" id="opponent-emoji-slot"></div>
             </div>
 
             <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
@@ -101,9 +111,15 @@
 
             <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
 
-            <div id="my-card-area" style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%; position:relative;">
-                <div id="slot-my" class="card-slot">-</div>
-                <span style="font-size: 0.85rem; color: #94a3b8;">내가 낸 카드</span>
+            <div id="my-card-area" class="card-row">
+                <div class="side-col" id="my-score-col">
+                    <div id="my-score" class="score-num">0</div>
+                </div>
+                <div class="center-col">
+                    <div id="slot-my" class="card-slot">-</div>
+                    <span style="font-size: 0.85rem; color: #94a3b8;">내가 낸 카드</span>
+                </div>
+                <div class="side-col" id="my-emoji-slot"></div>
             </div>
         </div>
 
@@ -263,21 +279,18 @@
         if (!emoji) return;
 
         const isMine = (role === myRole);
-        const areaId = isMine ? 'my-card-area' : 'opponent-card-area';
-        const area = document.getElementById(areaId);
-        if (!area) return;
+        const slotId = isMine ? 'my-emoji-slot' : 'opponent-emoji-slot';
+        const slot = document.getElementById(slotId);
+        if (!slot) return;
 
         // 기존 말풍선이 있으면 즉시 제거
-        const existing = area.querySelector('.emoji-bubble');
+        const existing = slot.querySelector('.emoji-bubble');
         if (existing) existing.remove();
 
         const bubble = document.createElement('div');
         bubble.className = 'emoji-bubble';
-        bubble.innerHTML = `
-            <div class="bubble-inner"><img src="${emoji.file}" alt="${emoji.id}"></div>
-            <div class="bubble-tail"></div>
-        `;
-        area.appendChild(bubble);
+        bubble.innerHTML = `<div class="bubble-inner"><img src="${emoji.file}" alt="${emoji.id}"></div>`;
+        slot.appendChild(bubble);
 
         setTimeout(() => {
             bubble.classList.add('fade-out');
@@ -299,11 +312,11 @@
         document.getElementById('lobby-screen').classList.add('hidden');
         document.getElementById('game-screen').classList.remove('hidden');
         document.getElementById('main-title').classList.add('hidden');
+        document.getElementById('room-text').innerText = `방 번호: ${roomCode}`;
     }
 
     socket.on('assignedRole', (role) => {
         myRole = role;
-        document.getElementById('role-text').innerText = `역할: 플레이어 ${role === 'p1' ? '1' : '2'}`;
     });
 
     socket.on('errorMsg', (msg) => { alert(msg); location.reload(); });
@@ -331,11 +344,11 @@
     }
 
     socket.on('updateState', (room) => {
-        document.getElementById('p1-score').innerText = room.wins.p1;
-        document.getElementById('p2-score').innerText = room.wins.p2;
-
         const isP1 = (myRole === 'p1');
         const oppRole = isP1 ? 'p2' : 'p1';
+
+        document.getElementById('my-score').innerText = room.wins[myRole] || 0;
+        document.getElementById('opp-score').innerText = room.wins[oppRole] || 0;
 
         // 히스토리 길이 변화나 라운드 초기화 시점 감지하여 당해 턴 고정
         if (room.history.length !== lastHistoryLength) {
