@@ -105,7 +105,7 @@ io.on('connection', (socket) => {
 
             io.to(roomCode).emit('roundResult', { winner: roundWinner });
 
-            if (room.history.length >= 9 || room.hands.p1.length === 0) {
+            if (room.history.length >= 9 || room.hands.p1.length === 0 || room.wins.p1 >= 5 || room.wins.p2 >= 5) {
                 room.gameOver = true;
                 let finalWinner = 'draw';
                 if (room.wins.p1 > room.wins.p2) finalWinner = 'p1';
