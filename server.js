@@ -127,6 +127,22 @@ io.on('connection', (socket) => {
         io.to(roomCode).emit('updateState', room);
     });
 
+    socket.on('sendEmoji', ({ roomCode, emojiId }) => {
+        const room = rooms[roomCode];
+        if (!room) return;
+        if (!room.players.includes(socket.id)) return;
+
+        const role = room.players[0] === socket.id ? 'p1' : 'p2';
+
+        const now = Date.now();
+        if (!room.lastEmojiAt) room.lastEmojiAt = {};
+        const last = room.lastEmojiAt[role] || 0;
+        if (now - last < 3000) return; // 3초 쿨타임
+
+        room.lastEmojiAt[role] = now;
+        io.to(roomCode).emit('emojiReceived', { role, emojiId });
+    });
+
     socket.on('disconnect', () => {
         for (const roomCode in rooms) {
             const room = rooms[roomCode];
