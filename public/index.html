@@ -22,6 +22,15 @@
         .history-container { display: flex; gap: 8px; overflow-x: auto; width: 100%; padding: 5px 0; min-height: 80px; align-items: center; justify-content: flex-start; }
         .history-slot { display: flex; flex-direction: column; gap: 3px; align-items: center; background: #1e293b; border: 1px solid var(--border); padding: 5px 8px; border-radius: 6px; min-width: 50px; flex-shrink: 0; }
 
+        /* 모바일(좁은 화면)에서는 드래그 없이 전체 기록이 한번에 보이도록 줄바꿈 처리. PC는 위 스타일(가로 스크롤) 그대로 유지 */
+        @media (max-width: 480px) {
+            .history-container {
+                flex-wrap: wrap;
+                overflow-x: visible;
+                justify-content: center;
+            }
+        }
+
         .card { width: 35px; height: 50px; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.9rem; cursor: pointer; border: 2px solid #555; }
         .card-odd { background: #ffffff; color: #0f172a; } 
         .card-even { background: #000000; color: #ffffff; border-color: #555; } 
@@ -59,18 +68,17 @@
 <body>
 
 <div class="container">
-    <h1>🐉 구룡투 실시간 온라인 대전</h1>
 
     <div id="lobby-screen" class="lobby">
+        <h1>🐉 구룡투 실시간 온라인 대전</h1>
         <p>함께 플레이할 방 코드를 입력하세요.</p>
         <input type="text" id="room-input" placeholder="예: room123">
         <button onclick="joinGame()">방 입장하기</button>
     </div>
 
     <div id="game-screen" class="game-screen hidden">
-        <div style="display:flex; justify-content:space-between; font-weight:bold;">
+        <div style="font-weight:bold;">
             <span id="role-text" style="color:var(--primary);">역할: 대기중</span>
-            <span>스코어 - P1: <span id="p1-score">0</span>승 / P2: <span id="p2-score">0</span>승</span>
         </div>
 
         <div class="board" id="game-board-area">
@@ -91,14 +99,27 @@
 
             <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
                 <span style="font-size: 0.85rem; color: #94a3b8;">상대방 낸 카드</span>
-                <div style="position:relative; display:inline-block;">
-                    <div id="slot-opponent" class="card-slot">-</div>
-                    <div id="emoji-popup" class="emoji-popup">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div id="score-board" style="display:flex; align-items:center; gap:6px; background:#0f172a; border:1px solid var(--border); border-radius:10px; padding:6px 10px;">
+                        <div style="text-align:center;">
+                            <div style="font-size:0.6rem; color:#94a3b8;">나</div>
+                            <div id="my-score" style="font-size:1.7rem; font-weight:bold; color:#10b981; line-height:1;">0</div>
+                        </div>
+                        <div style="font-size:1.2rem; color:#64748b; font-weight:bold;">:</div>
+                        <div style="text-align:center;">
+                            <div style="font-size:0.6rem; color:#94a3b8;">상대</div>
+                            <div id="opp-score" style="font-size:1.7rem; font-weight:bold; color:#ef4444; line-height:1;">0</div>
+                        </div>
+                    </div>
+                    <div style="position:relative; display:inline-block;">
+                        <div id="slot-opponent" class="card-slot">-</div>
+                        <div id="emoji-popup" class="emoji-popup">
                         <div class="emoji-bubble">
                             <img id="emoji-popup-img" src="" alt="emoji">
                             <div id="emoji-popup-label" class="emoji-popup-label"></div>
                         </div>
                     </div>
+                </div>
                 </div>
                 <span id="opp-hand-count" style="color:#f59e0b; font-size: 0.8rem; font-weight:bold;">상대 남은 손패: 백색 5장, 검정 4장</span>
             </div>
@@ -118,6 +139,11 @@
             </div>
         </div>
 
+        <div>
+            <div style="font-size:0.85rem; margin-bottom:5px;">내 손패 (홀수: 백색 / 짝수: 검정색)</div>
+            <div id="my-hand" class="hand"></div>
+        </div>
+
         <div id="status-msg" style="text-align:center; color:#94a3b8; font-size:0.95rem;">상대방을 기다리는 중입니다...</div>
 
         <div id="timer-wrap" class="timer-wrap hidden">
@@ -127,18 +153,13 @@
         </div>
 
         <div>
-            <div style="font-size:0.85rem; margin-bottom:5px;">내 손패 (홀수: 백색 / 짝수: 검정색)</div>
-            <div id="my-hand" class="hand"></div>
-        </div>
-
-        <div>
             <div style="font-size:0.8rem; margin-bottom:5px; color:#94a3b8; text-align:center;">이모티콘 보내기</div>
             <div id="emoji-bar" class="emoji-bar"></div>
         </div>
     </div>
 </div>
 
-<div class="version-badge">ver.17</div>
+<div class="version-badge">ver.19</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -338,11 +359,11 @@
     }
 
     socket.on('updateState', (room) => {
-        document.getElementById('p1-score').innerText = room.wins.p1;
-        document.getElementById('p2-score').innerText = room.wins.p2;
-
         const isP1 = (myRole === 'p1');
         const oppRole = isP1 ? 'p2' : 'p1';
+
+        document.getElementById('my-score').innerText = myRole ? room.wins[myRole] : 0;
+        document.getElementById('opp-score').innerText = myRole ? room.wins[oppRole] : 0;
 
         // 히스토리 길이 변화나 라운드 초기화 시점 감지하여 당해 턴 고정
         if (room.history.length !== lastHistoryLength) {
