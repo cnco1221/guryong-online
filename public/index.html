@@ -63,8 +63,6 @@
         .emoji-bubble img { width: 84px; height: 84px; object-fit: contain; display: block; }
         .emoji-bubble::after { content: ''; position: absolute; top: 50%; left: -12px; transform: translateY(-50%); border-width: 8px 12px 8px 0; border-style: solid; border-color: transparent #f8fafc transparent transparent; }
         .emoji-popup-label { margin-top: 3px; font-size: 0.65rem; color: #0f172a; font-weight: bold; }
-
-        .score-side { position: absolute; top: 50%; right: 100%; margin-right: 18px; transform: translateY(-50%); text-align: center; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -79,6 +77,11 @@
     </div>
 
     <div id="game-screen" class="game-screen hidden">
+        <div style="display:flex; justify-content:space-between; font-weight:bold;">
+            <span id="role-text" style="color:var(--primary);">역할: 대기중</span>
+            <span>스코어 - P1: <span id="p1-score">0</span>승 / P2: <span id="p2-score">0</span>승</span>
+        </div>
+
         <div class="board" id="game-board-area">
             <div id="countdown-box" class="countdown-overlay hidden">
                 <div id="countdown-text" style="font-size: 1.2rem; font-weight: bold; color: #f8fafc;">상대방이 입장했습니다!</div>
@@ -98,16 +101,11 @@
             <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
                 <span style="font-size: 0.85rem; color: #94a3b8;">상대방 낸 카드</span>
                 <div style="position:relative; display:inline-block;">
-                    <div class="score-side">
-                        <div style="font-size:0.6rem; color:#94a3b8;">상대</div>
-                        <div id="opp-score" style="font-size:1.6rem; font-weight:bold; color:#ef4444; line-height:1;">0</div>
-                        <div style="font-size:0.55rem; color:#64748b;">승</div>
-                    </div>
                     <div id="slot-opponent" class="card-slot">-</div>
-                    <div id="emoji-popup-opp" class="emoji-popup">
+                    <div id="emoji-popup" class="emoji-popup">
                         <div class="emoji-bubble">
-                            <img id="emoji-popup-opp-img" src="" alt="emoji">
-                            <div id="emoji-popup-opp-label" class="emoji-popup-label"></div>
+                            <img id="emoji-popup-img" src="" alt="emoji">
+                            <div id="emoji-popup-label" class="emoji-popup-label"></div>
                         </div>
                     </div>
                 </div>
@@ -124,26 +122,13 @@
             <hr style="border:0; border-top:1px solid var(--border); width: 100%; margin: 5px 0;">
 
             <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
-                <div style="position:relative; display:inline-block;">
-                    <div class="score-side">
-                        <div style="font-size:0.6rem; color:#94a3b8;">나</div>
-                        <div id="my-score" style="font-size:1.6rem; font-weight:bold; color:#10b981; line-height:1;">0</div>
-                        <div style="font-size:0.55rem; color:#64748b;">승</div>
-                    </div>
-                    <div id="slot-my" class="card-slot">-</div>
-                    <div id="emoji-popup-mine" class="emoji-popup">
-                        <div class="emoji-bubble">
-                            <img id="emoji-popup-mine-img" src="" alt="emoji">
-                            <div id="emoji-popup-mine-label" class="emoji-popup-label"></div>
-                        </div>
-                    </div>
-                </div>
+                <div id="slot-my" class="card-slot">-</div>
                 <span style="font-size: 0.85rem; color: #94a3b8;">내가 낸 카드</span>
             </div>
         </div>
 
-        <div style="width:100%;">
-            <div style="font-size:0.85rem; margin-bottom:5px; text-align:center;">내 손패 (홀수: 백색 / 짝수: 검정색)</div>
+        <div>
+            <div style="font-size:0.85rem; margin-bottom:5px;">내 손패 (홀수: 백색 / 짝수: 검정색)</div>
             <div id="my-hand" class="hand"></div>
         </div>
 
@@ -162,7 +147,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.21</div>
+<div class="version-badge">ver.18</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -186,8 +171,7 @@
     // 이모티콘 관련 변수
     const EMOJI_IDS = [1, 2, 3, 4];
     const EMOJI_COOLDOWN_MS = 5000;
-    let emojiPopupTimeoutMine = null;
-    let emojiPopupTimeoutOpp = null;
+    let emojiPopupTimeout = null;
     let emojiCooldownActive = false;
 
     function setupEmojiBar() {
@@ -302,6 +286,7 @@
 
     socket.on('assignedRole', (role) => {
         myRole = role;
+        document.getElementById('role-text').innerText = `역할: 플레이어 ${role === 'p1' ? '1' : '2'}`;
     });
 
     socket.on('errorMsg', (msg) => { alert(msg); location.reload(); });
@@ -323,31 +308,20 @@
     });
 
     socket.on('emojiReceived', ({ role, emojiId }) => {
-        const isMine = (role === myRole);
-        const suffix = isMine ? 'mine' : 'opp';
-
-        const popup = document.getElementById(`emoji-popup-${suffix}`);
-        const img = document.getElementById(`emoji-popup-${suffix}-img`);
-        const label = document.getElementById(`emoji-popup-${suffix}-label`);
+        const popup = document.getElementById('emoji-popup');
+        const img = document.getElementById('emoji-popup-img');
+        const label = document.getElementById('emoji-popup-label');
         img.src = `/emojis/e${emojiId}.png`;
-        label.innerText = isMine ? '나' : '상대';
+        label.innerText = (role === myRole) ? '나' : '상대';
 
-        if (isMine) {
-            if (emojiPopupTimeoutMine) clearTimeout(emojiPopupTimeoutMine);
-        } else {
-            if (emojiPopupTimeoutOpp) clearTimeout(emojiPopupTimeoutOpp);
-        }
-
+        if (emojiPopupTimeout) clearTimeout(emojiPopupTimeout);
         popup.classList.remove('show');
         void popup.offsetWidth; // 애니메이션 재시작을 위한 강제 리플로우
         popup.classList.add('show');
 
-        const t = setTimeout(() => {
+        emojiPopupTimeout = setTimeout(() => {
             popup.classList.remove('show');
         }, 1400);
-
-        if (isMine) emojiPopupTimeoutMine = t;
-        else emojiPopupTimeoutOpp = t;
     });
 
     function startCountdown() {
@@ -373,11 +347,11 @@
     }
 
     socket.on('updateState', (room) => {
+        document.getElementById('p1-score').innerText = room.wins.p1;
+        document.getElementById('p2-score').innerText = room.wins.p2;
+
         const isP1 = (myRole === 'p1');
         const oppRole = isP1 ? 'p2' : 'p1';
-
-        document.getElementById('my-score').innerText = myRole ? room.wins[myRole] : 0;
-        document.getElementById('opp-score').innerText = myRole ? room.wins[oppRole] : 0;
 
         // 히스토리 길이 변화나 라운드 초기화 시점 감지하여 당해 턴 고정
         if (room.history.length !== lastHistoryLength) {
