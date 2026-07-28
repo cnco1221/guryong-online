@@ -132,6 +132,7 @@
         <div style="position:relative; text-align:center; font-weight:bold; padding:0 50px;">
             <span id="room-text" style="color:var(--primary);">방 번호: -</span>
             <button id="leave-spectate-btn" onclick="leaveSpectate()" class="hidden" style="padding:3px 8px; font-size:0.7rem; margin-left:6px;">🚪 관전 나가기</button>
+            <button id="leave-room-btn" onclick="leaveRoom()" class="hidden" style="padding:3px 8px; font-size:0.7rem; margin-left:6px;">🚪 방 나가기</button>
             <span id="spectator-count-badge" style="position:absolute; left:0; top:50%; transform:translateY(-50%); font-size:0.72rem; color:#94a3b8; font-weight:normal;">👀 0명</span>
         </div>
 
@@ -193,6 +194,13 @@
             <div id="my-hand" class="hand"></div>
         </div>
 
+        <div id="spectator-hands-section" class="hidden">
+            <div id="spectator-p2-hand-label" style="font-size:0.8rem; margin-bottom:4px; text-align:center; color:#94a3b8;">P2 손패</div>
+            <div id="spectator-p2-hand" class="hand"></div>
+            <div id="spectator-p1-hand-label" style="font-size:0.8rem; margin:8px 0 4px; text-align:center; color:#94a3b8;">P1 손패</div>
+            <div id="spectator-p1-hand" class="hand"></div>
+        </div>
+
         <div id="emoji-bar-section">
             <div style="font-size:0.75rem; margin-bottom:5px; color:#94a3b8; text-align:center;">이모티콘</div>
             <div id="emoji-bar" class="emoji-bar"></div>
@@ -200,7 +208,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.27</div>
+<div class="version-badge">ver.29</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -246,7 +254,22 @@
         return `<strong>${escapeHtml(nick)}</strong>`;
     }
 
+    // 관전자용: 클릭 불가능한 손패 카드 목록을 그려줌
+    function renderReadonlyHand(containerId, cards) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+        cards.forEach((c) => {
+            const card = document.createElement('div');
+            const isOdd = (c % 2 !== 0);
+            card.className = `card ${isOdd ? 'card-odd' : 'card-even'} disabled`;
+            card.innerText = c;
+            container.appendChild(card);
+        });
+    }
+
     let isSpectator = false;
+    let cachedP1Nick = 'P1';
+    let cachedP2Nick = 'P2';
     let currentRoom = null;
     let myLastSelectedCard = null;
     let isGameOver = false;
@@ -552,12 +575,14 @@
             isSpectator = true;
             myRole = 'p1'; // 관전자는 내부적으로 p1 시점(위=P2, 아래=P1)으로 고정 렌더링
             document.getElementById('my-hand-section').classList.add('hidden');
+            document.getElementById('spectator-hands-section').classList.remove('hidden');
             document.getElementById('emoji-bar-section').classList.add('hidden');
             document.getElementById('leave-spectate-btn').classList.remove('hidden');
         } else {
             isSpectator = false;
             myRole = role;
             document.getElementById('my-hand-section').classList.remove('hidden');
+            document.getElementById('spectator-hands-section').classList.add('hidden');
             document.getElementById('emoji-bar-section').classList.remove('hidden');
             document.getElementById('leave-spectate-btn').classList.add('hidden');
         }
@@ -569,6 +594,7 @@
         document.getElementById('main-title').classList.remove('hidden');
         document.getElementById('online-count-bar').classList.remove('hidden');
         document.getElementById('leave-spectate-btn').classList.add('hidden');
+        document.getElementById('leave-room-btn').classList.add('hidden');
         document.body.classList.remove('in-game');
 
         currentRoom = null;
@@ -589,6 +615,13 @@
     function leaveSpectate() {
         if (currentRoom) {
             socket.emit('leaveSpectate', { roomCode: currentRoom });
+        }
+        returnToLobby();
+    }
+
+    function leaveRoom() {
+        if (currentRoom) {
+            socket.emit('leaveRoom', { roomCode: currentRoom });
         }
         returnToLobby();
     }
@@ -627,6 +660,8 @@
 
         const p1Nick = room.nicknames ? (room.nicknames[room.players[0]] || 'P1') : 'P1';
         const p2Nick = room.nicknames ? (room.nicknames[room.players[1]] || 'P2') : 'P2';
+        cachedP1Nick = p1Nick;
+        cachedP2Nick = p2Nick;
 
         const spectatorCount = (room.spectators || []).length;
         document.getElementById('spectator-count-badge').innerText = `👀 ${spectatorCount}명`;
@@ -636,6 +671,12 @@
             document.getElementById('opponent-card-label').innerHTML = `${boldNick(p2Nick)} 낸 카드`;
             document.getElementById('opponent-nick-badge').classList.add('hidden');
             document.getElementById('my-nick-badge').classList.add('hidden');
+
+            // 관전자 전용: 양쪽 플레이어의 손패를 그대로 공개
+            document.getElementById('spectator-p2-hand-label').innerHTML = `${boldNick(p2Nick)} 손패`;
+            document.getElementById('spectator-p1-hand-label').innerHTML = `${boldNick(p1Nick)} 손패`;
+            renderReadonlyHand('spectator-p2-hand', room.hands.p2);
+            renderReadonlyHand('spectator-p1-hand', room.hands.p1);
         } else {
             const myNick = isP1 ? p1Nick : p2Nick;
             const oppNick = isP1 ? p2Nick : p1Nick;
@@ -801,6 +842,8 @@
 
         const isBothPlayersJoined = (room.players && room.players.length >= 2);
 
+        document.getElementById('leave-room-btn').classList.toggle('hidden', isSpectator || isBothPlayersJoined);
+
         if (isBothPlayersJoined && !hasCountedDown) {
             hasCountedDown = true;
             if (!isSpectator) {
@@ -883,15 +926,25 @@
 
     socket.on('gameOver', ({ winner, history }) => {
         isGameOver = true;
-        const isGameWin = (winner === myRole);
         const isDraw = (winner === 'draw');
-        playSound(isGameWin ? 'win' : (isDraw ? 'draw' : 'lose'));
 
-        let finalTitle = isGameWin ? "🏆 최종 승리!" : (isDraw ? "🤝 무승부" : "💀 패배");
-        let finalDesc = isGameWin ? "축하합니다! 상대를 압도하셨습니다." : (isDraw ? "동점입니다. 팽팽한 승부였네요!" : "아쉽습니다. 다음 기회에 도전해보세요!");
+        let finalTitle;
+        let finalDesc;
+
+        if (isSpectator) {
+            const winnerNick = (winner === 'p1') ? cachedP1Nick : (winner === 'p2' ? cachedP2Nick : null);
+            playSound(isDraw ? 'draw' : 'win');
+            finalTitle = isDraw ? "🤝 무승부" : `🏆 ${winnerNick}님이 이겼습니다!`;
+            finalDesc = isDraw ? "동점입니다. 팽팽한 승부였네요!" : "관전해주셔서 감사합니다!";
+        } else {
+            const isGameWin = (winner === myRole);
+            playSound(isGameWin ? 'win' : (isDraw ? 'draw' : 'lose'));
+            finalTitle = isGameWin ? "🏆 최종 승리!" : (isDraw ? "🤝 무승부" : "💀 패배");
+            finalDesc = isGameWin ? "축하합니다! 상대를 압도하셨습니다." : (isDraw ? "동점입니다. 팽팽한 승부였네요!" : "아쉽습니다. 다음 기회에 도전해보세요!");
+        }
 
         const gameOverBox = document.getElementById('game-over-box');
-        document.getElementById('game-over-title').innerText = finalTitle;
+        document.getElementById('game-over-title').innerHTML = finalTitle;
         document.getElementById('game-over-desc').innerText = finalDesc;
 
         const gameOverHistory = document.getElementById('game-over-history');
