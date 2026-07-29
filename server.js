@@ -12,6 +12,10 @@ const rooms = {};
 const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 헷갈리는 0/O, 1/I 제외
 const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15분 동안 진행 없으면 자동 종료
 const INACTIVITY_CHECK_INTERVAL_MS = 30 * 1000; // 30초마다 점검
+const CHAT_LIMIT = 200; // 채팅 기록 최대 보관 개수
+const CHAT_MESSAGE_MAX_LEN = 200;
+
+let lobbyChat = []; // 방 목록(로비) 공용 채팅 - 서버 실행 중 유지
 
 function generateRoomCode() {
     let code;
@@ -49,7 +53,8 @@ function createRoomEntry(roomCode) {
         turn: null, // 현재 라운드의 선공 플레이어 ('p1' 또는 'p2')
         gameOver: false,
         lastEmojiAt: {},
-        lastActivity: Date.now() // 마지막으로 "진행"(입장/카드 제출)이 있었던 시각
+        lastActivity: Date.now(), // 마지막으로 "진행"(입장/카드 제출)이 있었던 시각
+        chat: [] // 이 방(플레이어+관전자 공용) 채팅 기록. 방이 삭제되면 함께 사라짐
     };
 }
 
@@ -108,16 +113,59 @@ function joinRoomInternal(socket, roomCode, nickname) {
     }
 
     io.to(roomCode).emit('updateState', room);
+    socket.emit('roomChatHistory', room.chat || []);
     broadcastRoomList();
 }
 
 io.on('connection', (socket) => {
     broadcastOnlineCount();
     socket.emit('roomList', getRoomListPayload());
+    socket.emit('lobbyChatHistory', lobbyChat);
 
     socket.on('getRoomList', () => {
         socket.emit('roomList', getRoomListPayload());
     });
+
+    // ===== 채팅 =====
+    socket.on('getLobbyChat', () => {
+        socket.emit('lobbyChatHistory', lobbyChat);
+    });
+
+    socket.on('sendLobbyChat', ({ nickname, message } = {}) => {
+        if (typeof nickname !== 'string' || !nickname.trim()) return; // 닉네임 설정한 사람만 채팅 가능
+        if (typeof message !== 'string') return;
+        const text = message.trim().slice(0, CHAT_MESSAGE_MAX_LEN);
+        if (!text) return;
+
+        const entry = { nickname: sanitizeNickname(nickname), message: text, timestamp: Date.now() };
+        lobbyChat.push(entry);
+        if (lobbyChat.length > CHAT_LIMIT) lobbyChat.shift();
+        io.emit('lobbyChatMessage', entry);
+    });
+
+    socket.on('sendRoomChat', ({ roomCode, message } = {}) => {
+        if (!roomCode || typeof roomCode !== 'string') return;
+        roomCode = roomCode.trim().toUpperCase();
+        const room = rooms[roomCode];
+        if (!room) return;
+
+        // 이 방의 플레이어 또는 관전자이면서 닉네임이 설정된 사람만 채팅 가능
+        const nickname = room.nicknames[socket.id];
+        if (!nickname) return;
+        const isOccupant = room.players.includes(socket.id) || (room.spectators && room.spectators.includes(socket.id));
+        if (!isOccupant) return;
+
+        if (typeof message !== 'string') return;
+        const text = message.trim().slice(0, CHAT_MESSAGE_MAX_LEN);
+        if (!text) return;
+
+        if (!room.chat) room.chat = [];
+        const entry = { nickname, message: text, timestamp: Date.now() };
+        room.chat.push(entry);
+        if (room.chat.length > CHAT_LIMIT) room.chat.shift();
+        io.to(roomCode).emit('roomChatMessage', entry);
+    });
+    // ===== 채팅 끝 =====
 
     socket.on('createRoom', ({ nickname } = {}) => {
         const roomCode = generateRoomCode();
@@ -153,6 +201,7 @@ io.on('connection', (socket) => {
 
         socket.emit('assignedRole', 'spectator');
         socket.emit('updateState', room);
+        socket.emit('roomChatHistory', room.chat || []);
         broadcastRoomList();
     });
 
