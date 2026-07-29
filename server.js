@@ -16,6 +16,7 @@ const CHAT_LIMIT = 200; // 채팅 기록 최대 보관 개수
 const CHAT_MESSAGE_MAX_LEN = 200;
 
 let lobbyChat = []; // 방 목록(로비) 공용 채팅 - 서버 실행 중 유지
+const connectedNicknames = {}; // socket.id -> 닉네임(설정 전이면 null)
 
 function generateRoomCode() {
     let code;
@@ -77,8 +78,12 @@ function broadcastRoomList() {
     io.emit('roomList', getRoomListPayload());
 }
 
-function broadcastOnlineCount() {
-    io.emit('onlineCount', io.engine.clientsCount);
+function getOnlineUsersPayload() {
+    return Object.values(connectedNicknames).map((n) => n || '플레이어');
+}
+
+function broadcastOnlineUsers() {
+    io.emit('onlineUsers', getOnlineUsersPayload());
 }
 
 // 방 참가 처리 공통 로직 (방 만들기 직후 자동 입장 / 목록에서 입장 / 코드 직접 입장 공용)
@@ -105,6 +110,11 @@ function joinRoomInternal(socket, roomCode, nickname) {
     socket.data.roomCode = roomCode;
     touchActivity(room);
 
+    if (connectedNicknames[socket.id] !== room.nicknames[socket.id]) {
+        connectedNicknames[socket.id] = room.nicknames[socket.id];
+        broadcastOnlineUsers();
+    }
+
     const role = room.players[0] === socket.id ? 'p1' : 'p2';
     socket.emit('assignedRole', role);
 
@@ -114,12 +124,20 @@ function joinRoomInternal(socket, roomCode, nickname) {
 }
 
 io.on('connection', (socket) => {
-    broadcastOnlineCount();
+    connectedNicknames[socket.id] = null;
+    broadcastOnlineUsers();
     socket.emit('roomList', getRoomListPayload());
     socket.emit('lobbyChatHistory', lobbyChat);
 
     socket.on('getRoomList', () => {
         socket.emit('roomList', getRoomListPayload());
+    });
+
+    // 로비에서 닉네임을 입력/수정할 때마다 접속자 목록에 실시간 반영
+    socket.on('setNickname', ({ nickname } = {}) => {
+        const trimmed = (typeof nickname === 'string') ? nickname.trim().slice(0, 8) : '';
+        connectedNicknames[socket.id] = trimmed || null;
+        broadcastOnlineUsers();
     });
 
     // ===== 채팅 =====
@@ -194,6 +212,11 @@ io.on('connection', (socket) => {
         socket.join(roomCode);
         socket.data.roomCode = roomCode;
         socket.data.isSpectator = true;
+
+        if (connectedNicknames[socket.id] !== room.nicknames[socket.id]) {
+            connectedNicknames[socket.id] = room.nicknames[socket.id];
+            broadcastOnlineUsers();
+        }
 
         socket.emit('assignedRole', 'spectator');
         socket.emit('updateState', room);
@@ -444,7 +467,8 @@ io.on('connection', (socket) => {
 
             if (changed) broadcastRoomList();
         }
-        broadcastOnlineCount();
+        delete connectedNicknames[socket.id];
+        broadcastOnlineUsers();
     });
 });
 
