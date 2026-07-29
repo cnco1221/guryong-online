@@ -64,6 +64,11 @@
         .chat-msg-mine .chat-msg-bubble { background: rgba(245,158,11,0.15); border-color: var(--primary); }
         .chat-msg-system { align-self: center; font-size: 0.72rem; color: #64748b; }
 
+        #ready-toggle-btn.is-ready { background: #10b981; }
+        #start-game-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        body.excel-theme #ready-panel { background:#f3f3f3; border-color:#d3d6da; }
+        body.excel-theme #ready-status-text { color:#6b6b6b; }
+
         .count-chip { display: inline-block; padding: 1px 7px; border-radius: 5px; font-weight: bold; font-size: 0.9em; }
         .count-chip-white { background: #ffffff; color: #0f172a !important; border: 1px solid #555; }
         .count-chip-black { background: #000000; color: #ffffff !important; border: 1px solid #555; }
@@ -226,8 +231,6 @@
                 
                 <div style="font-size: 0.8rem; color: #f8fafc; font-weight: bold; margin-top: 5px; text-align: left; width: 100%;">전체 턴 기록 (상대방 카드 공개)</div>
                 <div id="game-over-history" style="display: flex; gap: 6px; overflow-x: auto; width: 100%; padding: 5px 0; justify-content: flex-start;"></div>
-
-                <button onclick="returnToLobby()" style="margin-top: 10px; padding: 6px 15px;">🚪 방 나가기</button>
             </div>
 
             <div id="opponent-card-area" class="card-row">
@@ -277,6 +280,12 @@
 
         <div id="status-msg" style="text-align:center; color:#94a3b8; font-size:0.95rem;">상대방을 기다리는 중입니다...</div>
 
+        <div id="ready-panel" class="hidden" style="text-align:center; display:flex; flex-direction:column; gap:8px; align-items:center; padding:12px; background:#1e293b; border:1px solid var(--border); border-radius:10px;">
+            <div id="ready-status-text" style="font-size:0.85rem; color:#94a3b8;"></div>
+            <button id="ready-toggle-btn" class="hidden" onclick="toggleReady()">🙋 게임 준비하기</button>
+            <button id="start-game-btn" class="hidden" onclick="startGame()">▶️ 게임 시작</button>
+        </div>
+
         <div id="my-hand-section">
             <div style="font-size:0.85rem; margin-bottom:5px; text-align:center;">내 손패 (홀수: 백색 / 짝수: 검정색)</div>
             <div id="my-hand" class="hand"></div>
@@ -289,7 +298,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.39</div>
+<div class="version-badge">ver.40</div>
 
 <div id="rules-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
     <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;">
@@ -564,6 +573,7 @@
     // ===== 채팅 끝 =====
     let isGameOver = false;
     let hasCountedDown = false;
+    let prevOccupantCount = null; // 초인종 소리 트리거용 (null = 아직 방에 처음 입장한 직후, 소리 재생 안 함)
     let isCountingDownActive = false;
     
     // 라운드별 선공 고정 변수
@@ -603,6 +613,24 @@
                 gain.gain.setValueAtTime(0.1, now);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
                 osc.start(now); osc.stop(now + 0.25);
+            } else if (type === 'doorbell') {
+                // '딩' (높은 음)
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(659.25, now); // E5
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc.start(now); osc.stop(now + 0.35);
+
+                // '동' (낮은 음)
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(523.25, now + 0.28); // C5
+                gain2.gain.setValueAtTime(0.2, now + 0.28);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+                osc2.start(now + 0.28); osc2.stop(now + 0.75);
             }
         } catch (e) {
             console.log('Audio error:', e);
@@ -752,6 +780,7 @@
         document.getElementById('chat-messages').innerHTML = '';
         document.getElementById('room-chat-ticker-text').innerText = '아직 채팅이 없습니다';
         setRoomChatUnread(false);
+        prevOccupantCount = null;
     }
 
     // ===== 방 만들기 / 목록에서 입장 / 코드로 입장 =====
@@ -944,6 +973,17 @@
     }
 
     socket.on('errorMsg', (msg) => { alert(msg); location.reload(); });
+    socket.on('actionError', (msg) => { alert(msg); });
+
+    function toggleReady() {
+        if (!currentRoom) return;
+        socket.emit('toggleReady', { roomCode: currentRoom });
+    }
+
+    function startGame() {
+        if (!currentRoom) return;
+        socket.emit('startGame', { roomCode: currentRoom });
+    }
 
     function startCountdown() {
         const box = document.getElementById('countdown-box');
@@ -974,6 +1014,18 @@
     socket.on('updateState', (room) => {
         const isP1 = (myRole === 'p1');
         const oppRole = isP1 ? 'p2' : 'p1';
+        const isGameActive = (room.turn !== null); // 방장이 게임을 시작해서 실제로 진행 중인지
+
+        // 누군가 새로 들어오면(플레이어/관전자 통틀어) 초인종 소리
+        const occupantCount = room.players.length + (room.spectators || []).length;
+        if (prevOccupantCount !== null && occupantCount > prevOccupantCount) {
+            playSound('doorbell');
+        }
+        prevOccupantCount = occupantCount;
+
+        if (!isGameActive) {
+            hasCountedDown = false; // 다음 게임 시작 때 카운트다운이 다시 동작하도록 초기화
+        }
 
         const p1Nick = room.nicknames ? (room.nicknames[room.players[0]] || 'P1') : 'P1';
         const p2Nick = room.nicknames ? (room.nicknames[room.players[1]] || 'P2') : 'P2';
@@ -1162,15 +1214,57 @@
         }
 
         const isBothPlayersJoined = (room.players && room.players.length >= 2);
+        const showReadyPhase = isBothPlayersJoined && !isGameActive;
 
-        document.getElementById('leave-room-btn').classList.toggle('hidden', isSpectator || isBothPlayersJoined);
+        document.getElementById('leave-room-btn').classList.toggle('hidden', isSpectator || isGameActive);
 
-        if (isBothPlayersJoined && !hasCountedDown) {
+        if (isGameActive && !hasCountedDown) {
             hasCountedDown = true;
             if (!isSpectator) {
                 startCountdown();
             }
         }
+
+        // ===== 게임 준비/시작 패널 =====
+        const readyPanel = document.getElementById('ready-panel');
+        if (showReadyPhase && !isCountingDownActive) {
+            readyPanel.classList.remove('hidden');
+
+            const isHostView = !isSpectator && myRole === 'p1';
+            const isGuestView = !isSpectator && myRole === 'p2';
+
+            const readyStatusText = document.getElementById('ready-status-text');
+            const readyToggleBtn = document.getElementById('ready-toggle-btn');
+            const startBtn = document.getElementById('start-game-btn');
+
+            if (isHostView) {
+                readyToggleBtn.classList.add('hidden');
+                startBtn.classList.remove('hidden');
+                startBtn.disabled = !room.guestReady;
+                readyStatusText.innerHTML = room.guestReady
+                    ? `${boldNick(p2Nick)}님 준비 완료! 시작할 수 있어요.`
+                    : `${boldNick(p2Nick)}님을 기다리는 중 (⏳ 준비 안 됨)`;
+            } else if (isGuestView) {
+                startBtn.classList.add('hidden');
+                readyToggleBtn.classList.remove('hidden');
+                readyToggleBtn.classList.toggle('is-ready', room.guestReady);
+                readyToggleBtn.innerText = room.guestReady ? '✅ 준비 완료 (취소하려면 클릭)' : '🙋 게임 준비하기';
+                readyStatusText.innerText = room.guestReady ? '방장이 게임을 시작하길 기다리는 중...' : '준비가 되면 버튼을 눌러주세요.';
+            } else {
+                readyToggleBtn.classList.add('hidden');
+                startBtn.classList.add('hidden');
+                readyStatusText.innerHTML = room.guestReady
+                    ? `${boldNick(p1Nick)}님이 게임을 시작하길 기다리는 중...`
+                    : `${boldNick(p2Nick)}님이 준비하길 기다리는 중...`;
+            }
+        } else {
+            readyPanel.classList.add('hidden');
+        }
+
+        if (!isSpectator) {
+            document.getElementById('my-hand-section').classList.toggle('hidden', showReadyPhase);
+        }
+        // ===== 게임 준비/시작 패널 끝 =====
 
         const handContainer = document.getElementById('my-hand');
         handContainer.innerHTML = '';
@@ -1187,7 +1281,7 @@
                 const stillInHand = myHandCards.includes(i);
                 card.className = `card ${isOdd ? 'card-odd' : 'card-even'}`;
 
-                if (isGameOver || isCountingDownActive || !isBothPlayersJoined || !stillInHand || !canActNow || alreadySubmitted) {
+                if (isGameOver || isCountingDownActive || !isGameActive || !stillInHand || !canActNow || alreadySubmitted) {
                     card.className += ' disabled';
                     if (!stillInHand) {
                         card.innerText = '-';
@@ -1207,15 +1301,16 @@
         }
 
         const statusMsg = document.getElementById('status-msg');
+        statusMsg.classList.toggle('hidden', showReadyPhase && !isCountingDownActive);
 
         if (isSpectator) {
             if (!isBothPlayersJoined) {
                 statusMsg.innerText = "상대 플레이어를 기다리는 중입니다...";
             } else if (isCountingDownActive) {
-                statusMsg.innerText = "상대방이 입장했습니다! 게임 시작 준비 중...";
+                statusMsg.innerText = "게임 시작 준비 중...";
             } else if (isGameOver) {
                 statusMsg.innerText = "게임이 종료되었습니다.";
-            } else {
+            } else if (!showReadyPhase) {
                 const turnNick = (lockedRoundTurn === 'p1') ? p1Nick : p2Nick;
                 statusMsg.innerHTML = `👀 관전 중 · ${boldNick(turnNick)}님의 차례입니다.`;
             }
@@ -1225,10 +1320,10 @@
             if (!isBothPlayersJoined) {
                 statusMsg.innerText = "상대방이 들어오기를 기다리는 중입니다...";
             } else if (isCountingDownActive) {
-                statusMsg.innerText = "상대방이 입장했습니다! 게임 시작 준비 중...";
+                statusMsg.innerText = "게임 시작 준비 중...";
             } else if (alreadySubmitted) {
                 statusMsg.innerText = "카드를 제출했습니다. 결과를 기다리는 중...";
-            } else {
+            } else if (!showReadyPhase) {
                 statusMsg.innerText = turnText;
             }
         }
