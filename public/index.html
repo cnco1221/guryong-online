@@ -238,7 +238,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.49</div>
+<div class="version-badge">ver.51</div>
 
 <div id="rules-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
     <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;">
@@ -536,6 +536,8 @@
     // ===== 채팅 끝 =====
     let isGameOver = false;
     let hasCountedDown = false;
+    let lastRoomState = null; // 잠금 해제 후 재렌더링에 사용
+    let roundResultLockUntil = 0; // 이 시각까지는 라운드 결과 효과음 재생 중이라 카드 제출 불가
     let prevOccupantCount = null; // 초인종 소리 트리거용 (null = 아직 방에 처음 입장한 직후, 소리 재생 안 함)
     let isCountingDownActive = false;
     
@@ -1017,7 +1019,8 @@
         }, 1000);
     }
 
-    socket.on('updateState', (room) => {
+    function handleUpdateState(room) {
+        lastRoomState = room;
         const isP1 = (myRole === 'p1');
         const oppRole = isP1 ? 'p2' : 'p1';
         const isGameActive = (room.turn !== null); // 방장이 게임을 시작해서 실제로 진행 중인지
@@ -1295,6 +1298,7 @@
 
             // 행동 가능 여부: 내가 선공이거나, 혹은 선공이 이미 카드를 낸 상태일 때 후공도 행동 가능
             const canActNow = isMyTurnInitial || (room.selected[oppRole] !== null);
+            const roundResultLocked = Date.now() < roundResultLockUntil; // 직전 라운드 결과 효과음이 아직 재생 중
 
             for (let i = 1; i <= 9; i++) {
                 const card = document.createElement('div');
@@ -1302,7 +1306,7 @@
                 const stillInHand = myHandCards.includes(i);
                 card.className = `card ${isOdd ? 'card-odd' : 'card-even'}`;
 
-                if (isGameOver || isCountingDownActive || !isGameActive || !stillInHand || !canActNow || alreadySubmitted) {
+                if (isGameOver || isCountingDownActive || !isGameActive || !stillInHand || !canActNow || alreadySubmitted || roundResultLocked) {
                     card.className += ' disabled';
                     if (!stillInHand) {
                         card.innerText = '-';
@@ -1348,17 +1352,33 @@
                 statusMsg.innerText = turnText;
             }
         }
-    });
+    }
+    socket.on('updateState', handleUpdateState);
+
+    // 라운드 결과 효과음의 실제 재생 길이 (playSound 함수의 각 타입별 지속시간과 맞춤)
+    const ROUND_SOUND_DURATION_MS = { win: 400, lose: 450, draw: 250 };
+
+    function lockCardsForRoundSound(soundType) {
+        const duration = ROUND_SOUND_DURATION_MS[soundType] || 400;
+        roundResultLockUntil = Date.now() + duration;
+        setTimeout(() => {
+            // 효과음이 끝났으니 잠금 해제하고, 마지막으로 받은 상태로 다시 렌더링해서 카드가 즉시 눌리도록 함
+            if (lastRoomState) handleUpdateState(lastRoomState);
+        }, duration + 20); // 약간의 여유를 둬서 확실히 잠금 해제 이후에 재렌더링되도록 함
+    }
 
     socket.on('roundResult', ({ winner }) => {
         lockedRoundTurn = null; // 다음 라운드를 위해 턴 고정 해제
         if (winner) {
             const isWin = (winner === myRole);
-            playSound(isWin ? 'win' : 'lose');
-            flashBackground(isWin ? 'win' : 'lose');
+            const soundType = isWin ? 'win' : 'lose';
+            playSound(soundType);
+            flashBackground(soundType);
+            lockCardsForRoundSound(soundType);
         } else {
             playSound('draw');
             flashBackground('draw');
+            lockCardsForRoundSound('draw');
         }
     });
 
