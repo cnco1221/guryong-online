@@ -56,8 +56,8 @@
 
         .nick-badge { display: inline-block; padding: 2px 10px; border: 1px solid var(--primary); border-radius: 12px; font-size: 0.72rem; font-weight: bold; color: var(--primary); background: rgba(245, 158, 11, 0.08); }
 
-        .count-white { color: #ffffff; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; font-weight: bold; }
-        .count-black { color: #000000; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; font-weight: bold; }
+        .count-white { color: #ffffff !important; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; -webkit-text-stroke: 0.4px #000; font-weight: bold; }
+        .count-black { color: #000000 !important; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; -webkit-text-stroke: 0.4px #fff; font-weight: bold; }
 
         .emoji-bar { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
         .emoji-btn { position: relative; width: 30px; height: 30px; padding: 2px; border-radius: 6px; background: #1e293b; border: 1px solid var(--border); cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.1s ease, opacity 0.2s ease; }
@@ -134,6 +134,7 @@
 
         body.excel-theme .board { background:#fbfbfb; border:1px solid #c7c7c7; border-radius:2px; }
         body.excel-theme .card-slot { background:#f3f3f3; border-color:#c7c7c7; }
+        body.excel-theme .card-slot.slot-empty { background:#eeeeee !important; color:#a0a0a0 !important; border-color:#d3d6da; }
         body.excel-theme .history-slot { background:#ffffff; border-color:#d3d6da; }
         body.excel-theme .score-num { color:#217346 !important; }
         body.excel-theme #status-msg { color:#4b4b4b !important; }
@@ -144,8 +145,6 @@
         body.excel-theme .emoji-btn { background:#ffffff; border-color:#c7c7c7; }
         body.excel-theme details summary { color:#217346; }
         body.excel-theme #rules-modal > div { background:#ffffff; color:#1b1b1b; }
-        body.excel-theme .count-white { color:#ffffff; text-shadow: -1px -1px 0 #217346, 1px -1px 0 #217346, -1px 1px 0 #217346, 1px 1px 0 #217346; }
-        body.excel-theme .count-black { color:#000000; text-shadow: -1px -1px 0 #d3d6da, 1px -1px 0 #d3d6da, -1px 1px 0 #d3d6da, 1px 1px 0 #d3d6da; }
 
     </style>
 </head>
@@ -270,7 +269,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.33</div>
+<div class="version-badge">ver.34</div>
 
 <div id="rules-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
     <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;">
@@ -866,6 +865,7 @@
                 oppSlot.style.color = isOdd ? '#0f172a' : '#ffffff';
             } else {
                 oppSlot.innerText = '-';
+                oppSlot.classList.add('slot-empty');
                 oppSlot.style.backgroundColor = '#1e293b';
                 oppSlot.style.color = '#f8fafc';
             }
@@ -879,6 +879,7 @@
                 mySlot.style.color = isOdd ? '#0f172a' : '#ffffff';
             } else {
                 mySlot.innerText = '-';
+                mySlot.classList.add('slot-empty');
                 mySlot.style.backgroundColor = '#1e293b';
                 mySlot.style.color = '#f8fafc';
             }
@@ -893,6 +894,7 @@
                 oppSlot.style.color = isOdd ? '#0f172a' : '#ffffff';
             } else {
                 oppSlot.innerText = '-';
+                oppSlot.classList.add('slot-empty');
                 oppSlot.style.backgroundColor = '#1e293b';
                 oppSlot.style.color = '#f8fafc';
             }
@@ -905,6 +907,7 @@
                 mySlot.style.color = isOdd ? '#0f172a' : '#ffffff';
             } else {
                 mySlot.innerText = '-';
+                mySlot.classList.add('slot-empty');
                 mySlot.style.backgroundColor = '#1e293b';
                 mySlot.style.color = '#f8fafc';
             }
