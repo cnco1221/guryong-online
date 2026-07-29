@@ -50,8 +50,9 @@ function createRoomEntry(roomCode) {
         selected: { p1: null, p2: null },
         wins: { p1: 0, p2: 0 },
         history: [],
-        turn: null, // 현재 라운드의 선공 플레이어 ('p1' 또는 'p2')
+        turn: null, // 현재 라운드의 선공 플레이어 ('p1' 또는 'p2'). null이면 게임이 아직 시작 안 된 상태
         gameOver: false,
+        guestReady: false, // 게스트(두 번째로 입장한 플레이어)가 게임 준비를 완료했는지
         lastEmojiAt: {},
         lastActivity: Date.now(), // 마지막으로 "진행"(입장/카드 제출)이 있었던 시각
         chat: [] // 이 방(플레이어+관전자 공용) 채팅 기록. 방이 삭제되면 함께 사라짐
@@ -65,7 +66,7 @@ function getRoomListPayload() {
             roomCode: code,
             playerCount: room.players.length,
             spectatorCount: (room.spectators || []).length,
-            status: room.players.length >= 2 ? (room.gameOver ? 'finished' : 'playing') : 'waiting',
+            status: room.players.length < 2 ? 'waiting' : (room.gameOver ? 'finished' : (room.turn !== null ? 'playing' : 'waiting')),
             hostNickname: room.nicknames[room.players[0]] || null,
             guestNickname: room.nicknames[room.players[1]] || null
         };
@@ -106,11 +107,6 @@ function joinRoomInternal(socket, roomCode, nickname) {
 
     const role = room.players[0] === socket.id ? 'p1' : 'p2';
     socket.emit('assignedRole', role);
-
-    // 두 명이 모두 모였을 때 최초 선공 무작위 설정
-    if (room.players.length === 2 && room.turn === null && !room.gameOver) {
-        room.turn = Math.random() < 0.5 ? 'p1' : 'p2';
-    }
 
     io.to(roomCode).emit('updateState', room);
     socket.emit('roomChatHistory', room.chat || []);
@@ -205,6 +201,40 @@ io.on('connection', (socket) => {
         broadcastRoomList();
     });
 
+    // ===== 게임 준비 / 시작 =====
+    socket.on('toggleReady', ({ roomCode } = {}) => {
+        if (!roomCode || typeof roomCode !== 'string') return;
+        roomCode = roomCode.trim().toUpperCase();
+        const room = rooms[roomCode];
+        if (!room || room.players.length < 2 || room.turn !== null) return;
+
+        // 게스트(두 번째로 입장한 플레이어)만 준비 상태를 토글할 수 있음
+        if (room.players[1] !== socket.id) return;
+
+        room.guestReady = !room.guestReady;
+        touchActivity(room);
+        io.to(roomCode).emit('updateState', room);
+    });
+
+    socket.on('startGame', ({ roomCode } = {}) => {
+        if (!roomCode || typeof roomCode !== 'string') return;
+        roomCode = roomCode.trim().toUpperCase();
+        const room = rooms[roomCode];
+        if (!room || room.players.length < 2 || room.turn !== null || room.gameOver) return;
+
+        // 방장(첫 번째로 입장한 플레이어)만 게임을 시작할 수 있고, 게스트가 준비를 마쳐야 함
+        if (room.players[0] !== socket.id) return;
+        if (!room.guestReady) {
+            socket.emit('actionError', '상대방이 아직 준비하지 않았습니다.');
+            return;
+        }
+
+        room.turn = Math.random() < 0.5 ? 'p1' : 'p2';
+        touchActivity(room);
+        io.to(roomCode).emit('updateState', room);
+    });
+    // ===== 게임 준비 / 시작 끝 =====
+
     socket.on('leaveSpectate', ({ roomCode } = {}, callback) => {
         if (!roomCode || typeof roomCode !== 'string') {
             if (typeof callback === 'function') callback();
@@ -257,6 +287,7 @@ io.on('connection', (socket) => {
 
         room.players.splice(idx, 1);
         delete room.nicknames[socket.id];
+        room.guestReady = false; // 인원 변동 -> 다음 게스트를 위해 준비 상태 초기화
         socket.leave(roomCode);
 
         if (room.players.length === 0 && (!room.spectators || room.spectators.length === 0)) {
@@ -329,9 +360,23 @@ io.on('connection', (socket) => {
                 else if (room.wins.p2 > room.wins.p1) finalWinner = 'p2';
 
                 setTimeout(() => {
+                    if (!rooms[roomCode]) return; // 그 사이 방이 다른 사유로 사라졌을 수 있음
                     io.to(roomCode).emit('gameOver', { winner: finalWinner, history: room.history });
-                    // 게임이 끝난 방은 즉시 제거 -> 다시 입장/관전 불가, 같은 코드로 새 방 생성 가능
-                    delete rooms[roomCode];
+
+                    // 방을 삭제하지 않고 다음 게임을 위해 초기화 -> 같은 방에서 바로 재대결 가능
+                    room.hands = {
+                        p1: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                        p2: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+                    };
+                    room.selected = { p1: null, p2: null };
+                    room.wins = { p1: 0, p2: 0 };
+                    room.history = [];
+                    room.turn = null;
+                    room.gameOver = false;
+                    room.guestReady = false; // 다음 게임을 위해 게스트는 다시 준비해야 함
+                    touchActivity(room);
+
+                    io.to(roomCode).emit('updateState', room);
                     broadcastRoomList();
                 }, 1000);
             } else {
@@ -372,6 +417,7 @@ io.on('connection', (socket) => {
             if (index !== -1) {
                 room.players.splice(index, 1);
                 delete room.nicknames[socket.id];
+                room.guestReady = false; // 인원 변동 -> 다음 게스트를 위해 준비 상태 초기화
                 changed = true;
                 if (room.players.length === 0 && (!room.spectators || room.spectators.length === 0)) {
                     delete rooms[roomCode];
