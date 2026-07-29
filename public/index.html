@@ -66,8 +66,6 @@
 
         #ready-toggle-btn.is-ready { background: #10b981; }
         #start-game-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        body.excel-theme #ready-panel { background:#f3f3f3; border-color:#d3d6da; }
-        body.excel-theme #ready-status-text { color:#6b6b6b; }
 
         .count-chip { display: inline-block; padding: 1px 7px; border-radius: 5px; font-weight: bold; font-size: 0.9em; }
         .count-chip-white { background: #ffffff; color: #0f172a !important; border: 1px solid #555; }
@@ -111,72 +109,14 @@
             hr { margin: 2px 0 !important; }
         }
 
-        /* ===== 엑셀 위장 모드 ===== */
-        body.excel-theme {
-            background: #e7e9eb;
-            background-image:
-                linear-gradient(to right, #d3d6da 1px, transparent 1px),
-                linear-gradient(to bottom, #d3d6da 1px, transparent 1px);
-            background-size: 24px 20px;
-            font-family: Calibri, 'Segoe UI', Arial, sans-serif;
-        }
-        body.excel-theme #fullscreen-btn,
-        body.excel-theme #theme-toggle-btn { background:#ffffff; border-color:#c7c7c7; color:#217346; }
-
-        body.excel-theme #fake-excel-bar {
-            display: flex; align-items: center; gap: 0; background: #f3f3f3; border: 1px solid #c7c7c7;
-            border-radius: 2px; margin-bottom: 8px; font-size: 0.75rem; color:#333; overflow:hidden;
-        }
-        body.excel-theme .fake-excel-name-box { padding: 3px 8px; border-right: 1px solid #c7c7c7; min-width: 40px; text-align:center; background:#fff; }
-        body.excel-theme .fake-excel-fx { padding: 3px 8px; border-right: 1px solid #c7c7c7; font-style: italic; color:#217346; background:#fff; }
-        body.excel-theme .fake-excel-formula { flex: 1; padding: 3px 8px; background:#fff; }
-
-        body.excel-theme .container {
-            background: #ffffff; border: 1px solid #b7b7b7; border-radius: 2px;
-            box-shadow: 0 1px 6px rgba(0,0,0,0.15); color: #1b1b1b;
-        }
-        body.excel-theme h1 { color: #217346; font-size: 1.1rem; }
-        body.excel-theme #online-count-bar { color: #6b6b6b; }
-        body.excel-theme .version-badge { color: #b7b7b7; }
-
-        body.excel-theme input { background:#ffffff; border:1px solid #b7b7b7; color:#1b1b1b; border-radius:2px; }
-        body.excel-theme button { background:#217346; color:#ffffff; border:1px solid #1a5c38; border-radius:2px; font-weight:normal; }
-        body.excel-theme button:hover { background:#1a5c38; }
-
-        body.excel-theme #room-list-box > div { background:#ffffff !important; border:1px solid #d3d6da !important; border-radius:2px !important; }
-        body.excel-theme #room-text { color:#217346 !important; }
-
-        body.excel-theme .board { background:#fbfbfb; border:1px solid #c7c7c7; border-radius:2px; }
-        body.excel-theme .card-slot { background:#f3f3f3; border-color:#c7c7c7; }
-        body.excel-theme .card-slot.slot-empty { background:#eeeeee !important; color:#a0a0a0 !important; border-color:#d3d6da; }
-        body.excel-theme .history-slot { background:#ffffff; border-color:#d3d6da; }
-        body.excel-theme .score-num { color:#217346 !important; }
-        body.excel-theme #status-msg { color:#4b4b4b !important; }
-        body.excel-theme .center-col span,
-        body.excel-theme #opp-hand-count { color:#6b6b6b !important; }
-        body.excel-theme hr { border-top-color:#d3d6da; }
-        body.excel-theme .nick-badge { border-color:#217346; color:#217346; background:rgba(33,115,70,0.08); }
-        body.excel-theme #chat-panel > div { background:#ffffff; border-color:#c7c7c7; }
-        body.excel-theme .chat-msg-bubble { background:#f3f3f3; border-color:#d3d6da; color:#1b1b1b; }
-        body.excel-theme .chat-msg-mine .chat-msg-bubble { background:rgba(33,115,70,0.12); border-color:#217346; }
-        body.excel-theme #room-chat-ticker { background:#f3f3f3; border-color:#d3d6da; color:#6b6b6b; }
-        body.excel-theme .emoji-btn { background:#ffffff; border-color:#c7c7c7; }
-        body.excel-theme details summary { color:#217346; }
-        body.excel-theme #rules-modal > div { background:#ffffff; color:#1b1b1b; }
-
     </style>
 </head>
 <body>
 
 <button id="fullscreen-btn" class="fullscreen-btn" onclick="toggleFullscreen()" title="전체화면">⛶</button>
-<button id="theme-toggle-btn" class="fullscreen-btn" onclick="toggleExcelMode()" title="엑셀모드 전환" style="top:auto; bottom:8px; right:auto; left:8px;">📊</button>
+<button id="chat-fab" class="fullscreen-btn" onclick="openChatFromFab()" title="채팅" style="top:auto; bottom:8px; right:8px;">💬<span id="chat-fab-dot" class="chat-dot hidden"></span></button>
 
 <div class="container">
-    <div id="fake-excel-bar" style="display:none;">
-        <div class="fake-excel-name-box">A1</div>
-        <div class="fake-excel-fx">fx</div>
-        <div class="fake-excel-formula"></div>
-    </div>
     <h1 id="main-title">🐉 방랑단과 구룡투</h1>
     <div id="online-count-bar" style="text-align:center; font-size:0.75rem; color:#94a3b8;">🟢 접속자 <span id="online-count">0</span>명</div>
 
@@ -187,7 +127,6 @@
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
             <span style="font-weight:bold; font-size:0.85rem; color:#94a3b8;">📋 방 목록</span>
             <div style="display:flex; gap:6px;">
-                <button id="lobby-chat-btn" onclick="openChatPanel('lobby')" style="padding:3px 8px; font-size:0.7rem; position:relative;">💬 채팅<span id="lobby-chat-dot" class="chat-dot hidden"></span></button>
                 <button onclick="openRulesModal()" style="padding:3px 8px; font-size:0.7rem;">📖 게임하는 방법</button>
                 <button onclick="requestRoomList()" style="padding:3px 8px; font-size:0.7rem;">🔄 새로고침</button>
             </div>
@@ -211,12 +150,6 @@
             <button id="leave-spectate-btn" onclick="leaveSpectate()" class="hidden" style="padding:3px 8px; font-size:0.7rem; margin-left:6px;">🚪 관전 나가기</button>
             <button id="leave-room-btn" onclick="leaveRoom()" class="hidden" style="padding:3px 8px; font-size:0.7rem; margin-left:6px;">🚪 방 나가기</button>
             <span id="spectator-count-badge" style="position:absolute; left:0; top:50%; transform:translateY(-50%); font-size:0.72rem; color:#94a3b8; font-weight:normal;">👀 0명</span>
-            <button id="room-chat-btn" onclick="openChatPanel('room')" style="position:absolute; right:0; top:50%; transform:translateY(-50%); padding:3px 8px; font-size:0.75rem;">💬<span id="room-chat-dot" class="chat-dot hidden"></span></button>
-        </div>
-
-        <div id="room-chat-ticker" onclick="openChatPanel('room')" style="display:flex; align-items:center; gap:5px; background:#1e293b; border:1px solid var(--border); border-radius:6px; padding:4px 10px; font-size:0.75rem; color:#94a3b8; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
-            <span style="flex-shrink:0;">💬</span>
-            <span id="room-chat-ticker-text" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">아직 채팅이 없습니다</span>
         </div>
 
         <div class="board" id="game-board-area">
@@ -295,10 +228,15 @@
             <div style="font-size:0.75rem; margin-bottom:5px; color:#94a3b8; text-align:center;">이모티콘</div>
             <div id="emoji-bar" class="emoji-bar"></div>
         </div>
+
+        <div id="room-chat-ticker" onclick="openChatPanel('room')" style="display:flex; align-items:center; gap:5px; background:#1e293b; border:1px solid var(--border); border-radius:6px; padding:4px 10px; font-size:0.75rem; color:#94a3b8; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+            <span style="flex-shrink:0;">💬</span>
+            <span id="room-chat-ticker-text" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">아직 채팅이 없습니다</span>
+        </div>
     </div>
 </div>
 
-<div class="version-badge">ver.40</div>
+<div class="version-badge">ver.41</div>
 
 <div id="rules-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
     <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;">
@@ -315,13 +253,14 @@
 </div>
 
 <div id="chat-panel" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10001; display:flex; align-items:flex-end; justify-content:center;">
-    <div style="background:var(--panel); border:1px solid var(--border); width:100%; max-width:600px; height:72vh; border-radius:16px 16px 0 0; display:flex; flex-direction:column; padding:14px;">
+    <div style="background:var(--panel); border:1px solid var(--border); width:100%; max-width:600px; height:40vh; border-radius:16px 16px 0 0; display:flex; flex-direction:column; padding:14px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-shrink:0;">
             <span id="chat-panel-title" style="font-weight:bold; color:var(--primary); font-size:0.95rem;">💬 채팅</span>
             <button onclick="closeChatPanel()" style="padding:3px 10px; font-size:0.8rem;">✕ 닫기</button>
         </div>
         <div id="chat-messages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:7px; padding:2px 2px 8px;"></div>
-        <div style="display:flex; gap:6px; flex-shrink:0;">
+        <button id="chat-speak-btn" onclick="revealChatInput()" style="flex-shrink:0;">✏️ 말하기</button>
+        <div id="chat-input-row" class="hidden" style="display:flex; gap:6px; flex-shrink:0;">
             <input type="text" id="chat-input" placeholder="메시지를 입력하세요" maxlength="200" style="flex:1;">
             <button onclick="sendChatMessage()" style="white-space:nowrap;">전송</button>
         </div>
@@ -360,42 +299,6 @@
     document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
     document.addEventListener('msfullscreenchange', updateFullscreenBtn);
     // ===== 전체화면 기능 끝 =====
-    // ===== 엑셀 위장 모드 =====
-    const ORIGINAL_TITLE = document.title;
-    const ORIGINAL_FAVICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='24' font-size='24'>🐉</text></svg>";
-    const EXCEL_TITLE = '분기별 실적 정리.xlsx - Excel';
-    const EXCEL_FAVICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%23217346'/><text x='16' y='23' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'>X</text></svg>";
-
-    function setFavicon(href) {
-        let link = document.querySelector("link[rel~='icon']");
-        if (!link) {
-            link = document.createElement('link');
-            link.rel = 'icon';
-            document.head.appendChild(link);
-        }
-        link.href = href;
-    }
-
-    function applyExcelMode(on) {
-        document.body.classList.toggle('excel-theme', on);
-        document.getElementById('fake-excel-bar').style.display = on ? 'flex' : 'none';
-        document.title = on ? EXCEL_TITLE : ORIGINAL_TITLE;
-        setFavicon(on ? EXCEL_FAVICON : ORIGINAL_FAVICON);
-        const btn = document.getElementById('theme-toggle-btn');
-        if (btn) {
-            btn.innerText = on ? '↩️' : '📊';
-            btn.title = on ? '기본모드로 전환' : '엑셀모드로 전환';
-        }
-        localStorage.setItem('guryong_excel_mode', on ? '1' : '0');
-    }
-
-    function toggleExcelMode() {
-        applyExcelMode(!document.body.classList.contains('excel-theme'));
-    }
-
-    // 페이지 로드 시 이전에 선택했던 모드 복원
-    applyExcelMode(localStorage.getItem('guryong_excel_mode') === '1');
-    // ===== 엑셀 위장 모드 끝 =====
 
     let myRole = null;
 
@@ -432,6 +335,8 @@
     let chatContext = null; // 'lobby' | 'room' | null (패널이 닫혀있으면 null)
     let lobbyChatMessages = [];
     let roomChatMessages = [];
+    let lobbyChatUnread = false;
+    let roomChatUnread = false;
 
     function escapeHtmlChat(str) {
         const div = document.createElement('div');
@@ -439,12 +344,19 @@
         return div.innerHTML;
     }
 
+    function refreshChatFabDot() {
+        const relevant = currentRoom ? roomChatUnread : lobbyChatUnread;
+        document.getElementById('chat-fab-dot').classList.toggle('hidden', !relevant);
+    }
+
     function setLobbyChatUnread(on) {
-        document.getElementById('lobby-chat-dot').classList.toggle('hidden', !on);
+        lobbyChatUnread = on;
+        refreshChatFabDot();
     }
 
     function setRoomChatUnread(on) {
-        document.getElementById('room-chat-dot').classList.toggle('hidden', !on);
+        roomChatUnread = on;
+        refreshChatFabDot();
     }
 
     function currentChatNickname() {
@@ -472,6 +384,10 @@
         containerEl.appendChild(wrap);
     }
 
+    function openChatFromFab() {
+        openChatPanel(currentRoom ? 'room' : 'lobby');
+    }
+
     function openChatPanel(context) {
         if (context === 'room' && !currentRoom) return;
         chatContext = context;
@@ -490,8 +406,17 @@
             setRoomChatUnread(false);
         }
 
+        // 열 때마다 "말하기" 버튼부터 보이도록 초기화 (바로 키보드가 뜨지 않게)
+        document.getElementById('chat-speak-btn').classList.remove('hidden');
+        document.getElementById('chat-input-row').classList.add('hidden');
+
         panel.classList.remove('hidden');
-        setTimeout(() => document.getElementById('chat-input').focus(), 50);
+    }
+
+    function revealChatInput() {
+        document.getElementById('chat-speak-btn').classList.add('hidden');
+        document.getElementById('chat-input-row').classList.remove('hidden');
+        document.getElementById('chat-input').focus();
     }
 
     function closeChatPanel() {
@@ -518,6 +443,7 @@
             return;
         }
         input.value = '';
+        input.focus();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -948,6 +874,7 @@
             closeChatPanel();
         }
         roomChatMessages = [];
+        refreshChatFabDot();
 
         requestRoomList();
     }
