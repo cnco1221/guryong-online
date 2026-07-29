@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>방랑단과 구룡투</title>
     <style>
-        :root { --bg: #1a2740; --panel: #26344a; --border: #45566e; --primary: #f59e0b; }
+        :root { --bg: #1e293b; --panel: #334155; --border: #475569; --primary: #f59e0b; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
         html, body { height: 100%; }
         body { background-color: var(--bg); color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100dvh; padding: 8px; position: relative; transition: background-color 0.3s ease; }
@@ -14,7 +14,7 @@
         body.is-fullscreen .container { max-height: 96vh; }
         body.is-fullscreen.in-game .container { height: 96vh; max-height: 96vh; }
         
-        .version-badge { position: absolute; bottom: 15px; right: 20px; font-size: 0.75rem; color: #64748b; font-weight: bold; }
+        .version-badge { position: absolute; bottom: 15px; left: 20px; font-size: 0.75rem; color: #64748b; font-weight: bold; }
 
         h1 { font-size: 1.3rem; text-align: center; }
 
@@ -23,21 +23,21 @@
         .container { width: 95%; max-width: 600px; max-height: 97dvh; overflow-y: auto; background: var(--panel); border: 2px solid var(--border); border-radius: 16px; padding: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 10px; }
         .lobby, .game-screen { display: flex; flex-direction: column; gap: 10px; }
         .hidden { display: none !important; }
-        input { padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: #16233a; color: white; font-size: 1rem; }
+        input { padding: 10px; border-radius: 6px; border: 1px solid var(--border); background: #1e293b; color: white; font-size: 1rem; }
         button { background: var(--primary); color: #000; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         
-        .board { background: #16233a; border: 2px dashed var(--border); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; overflow: hidden; }
+        .board { background: #1e293b; border: 2px dashed var(--border); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; overflow: hidden; }
         
         
         .history-container { display: flex; gap: 6px; overflow-x: auto; width: 100%; padding: 4px 0; min-height: 56px; align-items: center; justify-content: flex-start; }
-        .history-slot { display: flex; flex-direction: column; gap: 3px; align-items: center; background: #26344a; border: 1px solid var(--border); padding: 4px 6px; border-radius: 6px; min-width: 42px; flex-shrink: 0; }
+        .history-slot { display: flex; flex-direction: column; gap: 3px; align-items: center; background: #334155; border: 1px solid var(--border); padding: 4px 6px; border-radius: 6px; min-width: 42px; flex-shrink: 0; }
 
         .card { width: 32px; height: 44px; border-radius: 4px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.85rem; cursor: pointer; border: 2px solid #555; }
         .card-odd { background: #ffffff; color: #0f172a; } 
         .card-even { background: #000000; color: #ffffff; border-color: #555; } 
         .card.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
         
-        .card-slot { width: 32px; height: 44px; border: 2px solid var(--border); border-radius: 4px; display: flex; justify-content: center; align-items: center; background: #26344a; font-weight: bold; font-size: 0.85rem; }
+        .card-slot { width: 32px; height: 44px; border: 2px solid var(--border); border-radius: 4px; display: flex; justify-content: center; align-items: center; background: #334155; font-weight: bold; font-size: 0.85rem; }
         .card-slot.card-back { background: repeating-linear-gradient(45deg, #4338ca, #4338ca 4px, #3730a3 4px, #3730a3 8px); color: #ffffff; border-color: #6366f1; }
         
         .hand { display: flex; gap: 5px; justify-content: center; }
@@ -59,7 +59,7 @@
         .chat-dot { position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: #ef4444; border: 1.5px solid var(--panel); }
         .chat-msg { display: flex; flex-direction: column; max-width: 82%; }
         .chat-msg-nick { font-size: 0.68rem; color: var(--primary); font-weight: bold; margin-bottom: 2px; }
-        .chat-msg-bubble { background: #26344a; border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; font-size: 0.82rem; word-break: break-word; }
+        .chat-msg-bubble { background: #334155; border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; font-size: 0.82rem; word-break: break-word; }
         .chat-msg-mine { align-self: flex-end; }
         .chat-msg-mine .chat-msg-bubble { background: rgba(245,158,11,0.15); border-color: var(--primary); }
         .chat-msg-system { align-self: center; font-size: 0.72rem; color: #64748b; }
@@ -72,7 +72,7 @@
         .count-chip-black { background: #000000; color: #ffffff !important; border: 1px solid #555; }
 
         .emoji-bar { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
-        .emoji-btn { position: relative; width: 30px; height: 30px; padding: 2px; border-radius: 6px; background: #26344a; border: 1px solid var(--border); cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.1s ease, opacity 0.2s ease; }
+        .emoji-btn { position: relative; width: 30px; height: 30px; padding: 2px; border-radius: 6px; background: #334155; border: 1px solid var(--border); cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.1s ease, opacity 0.2s ease; }
         .emoji-btn img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
         .emoji-btn:hover { transform: scale(1.08); border-color: var(--primary); }
         .emoji-btn.cooldown { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
@@ -213,7 +213,7 @@
 
         <div id="status-msg" style="text-align:center; color:#94a3b8; font-size:0.95rem;">상대방을 기다리는 중입니다...</div>
 
-        <div id="ready-panel" class="hidden" style="text-align:center; display:flex; flex-direction:column; gap:8px; align-items:center; padding:12px; background:#26344a; border:1px solid var(--border); border-radius:10px;">
+        <div id="ready-panel" class="hidden" style="text-align:center; display:flex; flex-direction:column; gap:8px; align-items:center; padding:12px; background:#334155; border:1px solid var(--border); border-radius:10px;">
             <div id="ready-status-text" style="font-size:0.85rem; color:#94a3b8;"></div>
             <button id="ready-toggle-btn" class="hidden" onclick="toggleReady()">🙋 게임 준비하기</button>
             <button id="start-game-btn" class="hidden" onclick="startGame()">▶️ 게임 시작</button>
@@ -229,14 +229,14 @@
             <div id="emoji-bar" class="emoji-bar"></div>
         </div>
 
-        <div id="room-chat-ticker" onclick="openChatPanel('room')" style="display:flex; align-items:center; gap:5px; background:#26344a; border:1px solid var(--border); border-radius:6px; padding:4px 10px; font-size:0.75rem; color:#94a3b8; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+        <div id="room-chat-ticker" onclick="openChatPanel('room')" style="display:flex; align-items:center; gap:5px; background:#334155; border:1px solid var(--border); border-radius:6px; padding:4px 10px; font-size:0.75rem; color:#94a3b8; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
             <span style="flex-shrink:0;">💬</span>
             <span id="room-chat-ticker-text" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">아직 채팅이 없습니다</span>
         </div>
     </div>
 </div>
 
-<div class="version-badge">ver.42</div>
+<div class="version-badge">ver.44</div>
 
 <div id="rules-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
     <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;">
@@ -252,8 +252,8 @@
     </div>
 </div>
 
-<div id="chat-panel" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10001; display:flex; align-items:flex-end; justify-content:center;">
-    <div style="background:var(--panel); border:1px solid var(--border); width:100%; max-width:600px; height:40vh; border-radius:16px 16px 0 0; display:flex; flex-direction:column; padding:14px;">
+<div id="chat-panel" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10001; display:flex; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:var(--panel); border:1px solid var(--border); width:100%; max-width:500px; height:40vh; border-radius:16px; display:flex; flex-direction:column; padding:14px; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-shrink:0;">
             <span id="chat-panel-title" style="font-weight:bold; color:var(--primary); font-size:0.95rem;">💬 채팅</span>
             <button onclick="closeChatPanel()" style="padding:3px 10px; font-size:0.8rem;">✕ 닫기</button>
@@ -570,11 +570,11 @@
         } else if (type === 'lose') {
             body.style.backgroundColor = '#7f1d1d';
         } else if (type === 'draw') {
-            body.style.backgroundColor = '#45566e';
+            body.style.backgroundColor = '#475569';
         }
 
         setTimeout(() => {
-            body.style.backgroundColor = '#1a2740';
+            body.style.backgroundColor = '#1e293b';
         }, 600);
     }
 
@@ -780,7 +780,7 @@
 
         list.forEach((r) => {
             const item = document.createElement('div');
-            item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#16233a; border:1px solid var(--border); border-radius:8px; padding:8px 10px; gap:8px;';
+            item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#1e293b; border:1px solid var(--border); border-radius:8px; padding:8px 10px; gap:8px;';
 
             const statusLabel = r.status === 'playing' ? '🎮 게임중' : (r.status === 'finished' ? '🏁 종료' : '⏳ 대기중');
             const names = [r.hostNickname, r.guestNickname].filter(Boolean).map(boldNick).join(' vs ') || '(닉네임 없음)';
@@ -1034,7 +1034,7 @@
             } else {
                 oppSlot.innerText = '-';
                 oppSlot.classList.add('slot-empty');
-                oppSlot.style.backgroundColor = '#26344a';
+                oppSlot.style.backgroundColor = '#334155';
                 oppSlot.style.color = '#f8fafc';
             }
 
@@ -1048,7 +1048,7 @@
             } else {
                 mySlot.innerText = '-';
                 mySlot.classList.add('slot-empty');
-                mySlot.style.backgroundColor = '#26344a';
+                mySlot.style.backgroundColor = '#334155';
                 mySlot.style.color = '#f8fafc';
             }
         } else {
@@ -1063,7 +1063,7 @@
             } else {
                 oppSlot.innerText = '-';
                 oppSlot.classList.add('slot-empty');
-                oppSlot.style.backgroundColor = '#26344a';
+                oppSlot.style.backgroundColor = '#334155';
                 oppSlot.style.color = '#f8fafc';
             }
 
@@ -1076,7 +1076,7 @@
             } else {
                 mySlot.innerText = '-';
                 mySlot.classList.add('slot-empty');
-                mySlot.style.backgroundColor = '#26344a';
+                mySlot.style.backgroundColor = '#334155';
                 mySlot.style.color = '#f8fafc';
             }
         }
@@ -1212,7 +1212,7 @@
                     card.className += ' disabled';
                     if (!stillInHand) {
                         card.innerText = '-';
-                        card.style.backgroundColor = '#26344a';
+                        card.style.backgroundColor = '#334155';
                     } else {
                         card.innerText = i;
                     }
