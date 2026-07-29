@@ -118,7 +118,7 @@
 
 <div class="container">
     <h1 id="main-title">🐉 방랑단과 구룡투</h1>
-    <div id="online-count-bar" style="text-align:center; font-size:0.75rem; color:#94a3b8;">🟢 접속자 <span id="online-count">0</span>명</div>
+    <div id="online-count-bar" style="text-align:center; font-size:0.75rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 8px;">🟢 접속자: <span id="online-users">-</span></div>
 
     <div id="lobby-screen" class="lobby">
         <input type="text" id="nickname-input" placeholder="닉네임을 입력하세요 (최대 8자)" maxlength="8">
@@ -236,7 +236,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.44</div>
+<div class="version-badge">ver.45</div>
 
 <div id="rules-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
     <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;">
@@ -452,6 +452,22 @@
             chatInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') sendChatMessage();
             });
+        }
+
+        // 닉네임 입력창에 타이핑할 때마다(디바운스) 접속자 목록에 실시간 반영
+        const nicknameInput = document.getElementById('nickname-input');
+        if (nicknameInput) {
+            let nicknameDebounceTimer = null;
+            nicknameInput.addEventListener('input', () => {
+                clearTimeout(nicknameDebounceTimer);
+                nicknameDebounceTimer = setTimeout(() => {
+                    socket.emit('setNickname', { nickname: nicknameInput.value });
+                }, 400);
+            });
+            // 저장된 닉네임이 있으면 페이지 로드 시 한 번 즉시 반영
+            if (nicknameInput.value.trim()) {
+                socket.emit('setNickname', { nickname: nicknameInput.value });
+            }
         }
     });
 
@@ -753,8 +769,8 @@
     });
 
     // ===== 접속자 수 / 방 목록 =====
-    socket.on('onlineCount', (count) => {
-        document.getElementById('online-count').innerText = count;
+    socket.on('onlineUsers', (names) => {
+        document.getElementById('online-users').innerText = (names && names.length > 0) ? names.join(', ') : '없음';
     });
 
     function requestRoomList() {
