@@ -238,7 +238,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.52</div>
+<div class="version-badge">ver.53</div>
 
 <div id="rules-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
     <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;">
@@ -640,7 +640,8 @@
         { id: 'thumbsup', file: '/emojis/thumbsup.png' },
         { id: 'think', file: '/emojis/think.png' },
         { id: 'laugh', file: '/emojis/laugh.png' },
-        { id: 'facepalm', file: '/emojis/facepalm.png' }
+        { id: 'facepalm', file: '/emojis/facepalm.png' },
+        { id: 'crying', file: '/emojis/crying.png' }
     ];
     const EMOJI_COOLDOWN_MS = 3000;
     const EMOJI_DISPLAY_MS = 3000;
@@ -1357,13 +1358,14 @@
 
     // 라운드 결과 화면 플래시(색 변화) 길이 - 승/패/무 전부 동일하게 통일 (패배 시 길이 기준)
     const ROUND_FLASH_DURATION_MS = 600;
+    const CARD_LOCK_DURATION_MS = 1000; // 라운드 결과가 오면 카드 제출을 이 시간만큼 잠금
 
     function lockCardsForRoundEffect() {
-        roundResultLockUntil = Date.now() + ROUND_FLASH_DURATION_MS;
+        roundResultLockUntil = Date.now() + CARD_LOCK_DURATION_MS;
         setTimeout(() => {
-            // 화면 플래시가 끝났으니 잠금 해제하고, 마지막으로 받은 상태로 다시 렌더링해서 카드가 즉시 눌리도록 함
+            // 잠금이 끝났으니 마지막으로 받은 상태로 다시 렌더링해서 카드가 즉시 눌리도록 함
             if (lastRoomState) handleUpdateState(lastRoomState);
-        }, ROUND_FLASH_DURATION_MS + 20); // 약간의 여유를 둬서 확실히 잠금 해제 이후에 재렌더링되도록 함
+        }, CARD_LOCK_DURATION_MS + 20); // 약간의 여유를 둬서 확실히 잠금 해제 이후에 재렌더링되도록 함
     }
 
     socket.on('roundResult', ({ winner }) => {
