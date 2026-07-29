@@ -56,9 +56,17 @@
 
         .nick-badge { display: inline-block; padding: 2px 10px; border: 1px solid var(--primary); border-radius: 12px; font-size: 0.72rem; font-weight: bold; color: var(--primary); background: rgba(245, 158, 11, 0.08); }
 
+        .chat-dot { position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: #ef4444; border: 1.5px solid var(--panel); }
+        .chat-msg { display: flex; flex-direction: column; max-width: 82%; }
+        .chat-msg-nick { font-size: 0.68rem; color: var(--primary); font-weight: bold; margin-bottom: 2px; }
+        .chat-msg-bubble { background: #1e293b; border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; font-size: 0.82rem; word-break: break-word; }
+        .chat-msg-mine { align-self: flex-end; }
+        .chat-msg-mine .chat-msg-bubble { background: rgba(245,158,11,0.15); border-color: var(--primary); }
+        .chat-msg-system { align-self: center; font-size: 0.72rem; color: #64748b; }
+
         .count-chip { display: inline-block; padding: 1px 7px; border-radius: 5px; font-weight: bold; font-size: 0.9em; }
-        .count-chip-white { background: #ffffff; color: #0f172a; border: 1px solid #555; }
-        .count-chip-black { background: #000000; color: #ffffff; border: 1px solid #555; }
+        .count-chip-white { background: #ffffff; color: #0f172a !important; border: 1px solid #555; }
+        .count-chip-black { background: #000000; color: #ffffff !important; border: 1px solid #555; }
 
         .emoji-bar { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
         .emoji-btn { position: relative; width: 30px; height: 30px; padding: 2px; border-radius: 6px; background: #1e293b; border: 1px solid var(--border); cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.1s ease, opacity 0.2s ease; }
@@ -143,6 +151,10 @@
         body.excel-theme #opp-hand-count { color:#6b6b6b !important; }
         body.excel-theme hr { border-top-color:#d3d6da; }
         body.excel-theme .nick-badge { border-color:#217346; color:#217346; background:rgba(33,115,70,0.08); }
+        body.excel-theme #chat-panel > div { background:#ffffff; border-color:#c7c7c7; }
+        body.excel-theme .chat-msg-bubble { background:#f3f3f3; border-color:#d3d6da; color:#1b1b1b; }
+        body.excel-theme .chat-msg-mine .chat-msg-bubble { background:rgba(33,115,70,0.12); border-color:#217346; }
+        body.excel-theme #room-chat-ticker { background:#f3f3f3; border-color:#d3d6da; color:#6b6b6b; }
         body.excel-theme .emoji-btn { background:#ffffff; border-color:#c7c7c7; }
         body.excel-theme details summary { color:#217346; }
         body.excel-theme #rules-modal > div { background:#ffffff; color:#1b1b1b; }
@@ -170,6 +182,7 @@
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
             <span style="font-weight:bold; font-size:0.85rem; color:#94a3b8;">📋 방 목록</span>
             <div style="display:flex; gap:6px;">
+                <button id="lobby-chat-btn" onclick="openChatPanel('lobby')" style="padding:3px 8px; font-size:0.7rem; position:relative;">💬 채팅<span id="lobby-chat-dot" class="chat-dot hidden"></span></button>
                 <button onclick="openRulesModal()" style="padding:3px 8px; font-size:0.7rem;">📖 게임하는 방법</button>
                 <button onclick="requestRoomList()" style="padding:3px 8px; font-size:0.7rem;">🔄 새로고침</button>
             </div>
@@ -193,6 +206,12 @@
             <button id="leave-spectate-btn" onclick="leaveSpectate()" class="hidden" style="padding:3px 8px; font-size:0.7rem; margin-left:6px;">🚪 관전 나가기</button>
             <button id="leave-room-btn" onclick="leaveRoom()" class="hidden" style="padding:3px 8px; font-size:0.7rem; margin-left:6px;">🚪 방 나가기</button>
             <span id="spectator-count-badge" style="position:absolute; left:0; top:50%; transform:translateY(-50%); font-size:0.72rem; color:#94a3b8; font-weight:normal;">👀 0명</span>
+            <button id="room-chat-btn" onclick="openChatPanel('room')" style="position:absolute; right:0; top:50%; transform:translateY(-50%); padding:3px 8px; font-size:0.75rem;">💬<span id="room-chat-dot" class="chat-dot hidden"></span></button>
+        </div>
+
+        <div id="room-chat-ticker" onclick="openChatPanel('room')" style="display:flex; align-items:center; gap:5px; background:#1e293b; border:1px solid var(--border); border-radius:6px; padding:4px 10px; font-size:0.75rem; color:#94a3b8; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+            <span style="flex-shrink:0;">💬</span>
+            <span id="room-chat-ticker-text" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">아직 채팅이 없습니다</span>
         </div>
 
         <div class="board" id="game-board-area">
@@ -270,7 +289,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.38</div>
+<div class="version-badge">ver.39</div>
 
 <div id="rules-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
     <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;">
@@ -283,6 +302,20 @@
             <li>매 라운드는 <strong>선공이 먼저 카드를 내고, 후공이 이어서 냅니다.</strong> <strong>직전 라운드 승자가 다음 라운드의 선공</strong>이 돼요.</li>
         </ol>
         <button onclick="closeRulesModal()" style="margin-top:16px; width:100%;">닫기</button>
+    </div>
+</div>
+
+<div id="chat-panel" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10001; display:flex; align-items:flex-end; justify-content:center;">
+    <div style="background:var(--panel); border:1px solid var(--border); width:100%; max-width:600px; height:72vh; border-radius:16px 16px 0 0; display:flex; flex-direction:column; padding:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-shrink:0;">
+            <span id="chat-panel-title" style="font-weight:bold; color:var(--primary); font-size:0.95rem;">💬 채팅</span>
+            <button onclick="closeChatPanel()" style="padding:3px 10px; font-size:0.8rem;">✕ 닫기</button>
+        </div>
+        <div id="chat-messages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:7px; padding:2px 2px 8px;"></div>
+        <div style="display:flex; gap:6px; flex-shrink:0;">
+            <input type="text" id="chat-input" placeholder="메시지를 입력하세요" maxlength="200" style="flex:1;">
+            <button onclick="sendChatMessage()" style="white-space:nowrap;">전송</button>
+        </div>
     </div>
 </div>
 
@@ -385,6 +418,150 @@
     let cachedP2Nick = 'P2';
     let currentRoom = null;
     let myLastSelectedCard = null;
+
+    // ===== 채팅 =====
+    let chatContext = null; // 'lobby' | 'room' | null (패널이 닫혀있으면 null)
+    let lobbyChatMessages = [];
+    let roomChatMessages = [];
+
+    function escapeHtmlChat(str) {
+        const div = document.createElement('div');
+        div.innerText = str;
+        return div.innerHTML;
+    }
+
+    function setLobbyChatUnread(on) {
+        document.getElementById('lobby-chat-dot').classList.toggle('hidden', !on);
+    }
+
+    function setRoomChatUnread(on) {
+        document.getElementById('room-chat-dot').classList.toggle('hidden', !on);
+    }
+
+    function currentChatNickname() {
+        // 방 안이면 이미 확정된 닉네임을, 로비면 입력창의 현재 값을 사용
+        if (currentRoom && myNickname) return myNickname;
+        const val = document.getElementById('nickname-input').value.trim();
+        return val || null;
+    }
+
+    function renderChatList(containerEl, list) {
+        containerEl.innerHTML = '';
+        const myNick = currentChatNickname();
+        list.forEach((entry) => appendChatBubble(containerEl, entry, myNick));
+        containerEl.scrollTop = containerEl.scrollHeight;
+    }
+
+    function appendChatBubble(containerEl, entry, myNick) {
+        const wrap = document.createElement('div');
+        const isMine = myNick && entry.nickname === myNick;
+        wrap.className = `chat-msg${isMine ? ' chat-msg-mine' : ''}`;
+        wrap.innerHTML = `
+            <div class="chat-msg-nick">${escapeHtmlChat(entry.nickname)}</div>
+            <div class="chat-msg-bubble">${escapeHtmlChat(entry.message)}</div>
+        `;
+        containerEl.appendChild(wrap);
+    }
+
+    function openChatPanel(context) {
+        if (context === 'room' && !currentRoom) return;
+        chatContext = context;
+
+        const panel = document.getElementById('chat-panel');
+        const title = document.getElementById('chat-panel-title');
+        const messagesEl = document.getElementById('chat-messages');
+
+        if (context === 'lobby') {
+            title.innerText = '💬 로비 채팅';
+            renderChatList(messagesEl, lobbyChatMessages);
+            setLobbyChatUnread(false);
+        } else {
+            title.innerText = '💬 방 채팅';
+            renderChatList(messagesEl, roomChatMessages);
+            setRoomChatUnread(false);
+        }
+
+        panel.classList.remove('hidden');
+        setTimeout(() => document.getElementById('chat-input').focus(), 50);
+    }
+
+    function closeChatPanel() {
+        document.getElementById('chat-panel').classList.add('hidden');
+        chatContext = null;
+    }
+
+    function sendChatMessage() {
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (!text) return;
+
+        const nickname = currentChatNickname();
+        if (!nickname) {
+            alert('닉네임을 먼저 입력해주세요.');
+            return;
+        }
+
+        if (chatContext === 'lobby') {
+            socket.emit('sendLobbyChat', { nickname, message: text });
+        } else if (chatContext === 'room' && currentRoom) {
+            socket.emit('sendRoomChat', { roomCode: currentRoom, message: text });
+        } else {
+            return;
+        }
+        input.value = '';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) {
+            chatInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') sendChatMessage();
+            });
+        }
+    });
+
+    socket.on('lobbyChatHistory', (list) => {
+        lobbyChatMessages = list || [];
+        if (chatContext === 'lobby') {
+            renderChatList(document.getElementById('chat-messages'), lobbyChatMessages);
+        }
+    });
+
+    socket.on('lobbyChatMessage', (entry) => {
+        lobbyChatMessages.push(entry);
+        if (chatContext === 'lobby') {
+            appendChatBubble(document.getElementById('chat-messages'), entry, currentChatNickname());
+            const el = document.getElementById('chat-messages');
+            el.scrollTop = el.scrollHeight;
+        } else {
+            setLobbyChatUnread(true);
+        }
+    });
+
+    socket.on('roomChatHistory', (list) => {
+        roomChatMessages = list || [];
+        if (chatContext === 'room') {
+            renderChatList(document.getElementById('chat-messages'), roomChatMessages);
+        }
+        const last = roomChatMessages[roomChatMessages.length - 1];
+        if (last) {
+            document.getElementById('room-chat-ticker-text').innerText = `${last.nickname}: ${last.message}`;
+        }
+    });
+
+    socket.on('roomChatMessage', (entry) => {
+        roomChatMessages.push(entry);
+        document.getElementById('room-chat-ticker-text').innerText = `${entry.nickname}: ${entry.message}`;
+
+        if (chatContext === 'room') {
+            appendChatBubble(document.getElementById('chat-messages'), entry, currentChatNickname());
+            const el = document.getElementById('chat-messages');
+            el.scrollTop = el.scrollHeight;
+        } else {
+            setRoomChatUnread(true);
+        }
+    });
+    // ===== 채팅 끝 =====
     let isGameOver = false;
     let hasCountedDown = false;
     let isCountingDownActive = false;
@@ -569,6 +746,12 @@
         document.getElementById('online-count-bar').classList.add('hidden');
         document.body.classList.add('in-game');
         document.getElementById('room-text').innerText = `방 번호: ${roomCode}`;
+
+        // 새 방에 들어왔으니 이전 방의 채팅 내용/상태 초기화
+        roomChatMessages = [];
+        document.getElementById('chat-messages').innerHTML = '';
+        document.getElementById('room-chat-ticker-text').innerText = '아직 채팅이 없습니다';
+        setRoomChatUnread(false);
     }
 
     // ===== 방 만들기 / 목록에서 입장 / 코드로 입장 =====
@@ -731,6 +914,11 @@
         myLastSelectedCard = null;
 
         document.getElementById('game-over-box').classList.add('hidden');
+
+        if (chatContext === 'room') {
+            closeChatPanel();
+        }
+        roomChatMessages = [];
 
         requestRoomList();
     }
