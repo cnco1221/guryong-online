@@ -149,7 +149,7 @@
             <span id="room-text" style="color:var(--primary);">방 번호: -</span>
             <button id="leave-spectate-btn" onclick="leaveSpectate()" class="hidden" style="padding:3px 8px; font-size:0.7rem; margin-left:6px;">🚪 관전 나가기</button>
             <button id="leave-room-btn" onclick="leaveRoom()" class="hidden" style="padding:3px 8px; font-size:0.7rem; margin-left:6px;">🚪 방 나가기</button>
-            <span id="spectator-count-badge" style="position:absolute; left:0; top:50%; transform:translateY(-50%); font-size:0.72rem; color:#94a3b8; font-weight:normal;">👀 0명</span>
+            <span id="spectator-count-badge" onclick="openSpectatorListModal()" style="position:absolute; left:0; top:50%; transform:translateY(-50%); font-size:0.72rem; color:#94a3b8; font-weight:normal; cursor:pointer; text-decoration:underline dotted;">👀 0명</span>
         </div>
 
         <div class="board" id="game-board-area">
@@ -213,6 +213,8 @@
 
         <div id="status-msg" style="text-align:center; color:#94a3b8; font-size:0.95rem;">상대방을 기다리는 중입니다...</div>
 
+        <button id="become-player-btn" onclick="becomePlayer()" class="hidden" style="align-self:center;">🎮 플레이어로 참가하기</button>
+
         <div id="ready-panel" class="hidden" style="text-align:center; display:flex; flex-direction:column; gap:8px; align-items:center; padding:12px; background:#334155; border:1px solid var(--border); border-radius:10px;">
             <div id="ready-status-text" style="font-size:0.85rem; color:#94a3b8;"></div>
             <button id="ready-toggle-btn" class="hidden" onclick="toggleReady()">🙋 게임 준비하기</button>
@@ -236,7 +238,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.45</div>
+<div class="version-badge">ver.49</div>
 
 <div id="rules-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
     <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;">
@@ -252,16 +254,26 @@
     </div>
 </div>
 
+<div id="spectator-list-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10001; display:flex; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px; max-width:300px; width:100%; max-height:60vh; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <span style="font-weight:bold; color:var(--primary); font-size:0.95rem;">👀 관전자 목록</span>
+            <button onclick="closeSpectatorListModal()" style="padding:3px 10px; font-size:0.8rem;">✕</button>
+        </div>
+        <div id="spectator-list-content" style="display:flex; flex-direction:column; gap:6px; font-size:0.85rem;"></div>
+    </div>
+</div>
+
 <div id="chat-panel" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10001; display:flex; align-items:center; justify-content:center; padding:20px;">
-    <div style="background:var(--panel); border:1px solid var(--border); width:100%; max-width:500px; height:40vh; border-radius:16px; display:flex; flex-direction:column; padding:14px; box-shadow:0 10px 25px rgba(0,0,0,0.5);">
+    <div style="background:var(--panel); border:1px solid var(--border); width:100%; max-width:500px; height:40vh; border-radius:16px; display:flex; flex-direction:column; padding:14px; box-shadow:0 10px 25px rgba(0,0,0,0.5); overflow-x:hidden;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-shrink:0;">
             <span id="chat-panel-title" style="font-weight:bold; color:var(--primary); font-size:0.95rem;">💬 채팅</span>
             <button onclick="closeChatPanel()" style="padding:3px 10px; font-size:0.8rem;">✕ 닫기</button>
         </div>
         <div id="chat-messages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:7px; padding:2px 2px 8px;"></div>
         <button id="chat-speak-btn" onclick="revealChatInput()" style="flex-shrink:0;">✏️ 말하기</button>
-        <div id="chat-input-row" class="hidden" style="display:flex; gap:6px; flex-shrink:0;">
-            <input type="text" id="chat-input" placeholder="메시지를 입력하세요" maxlength="200" style="flex:1;">
+        <div id="chat-input-row" class="hidden" style="display:flex; gap:6px; flex-shrink:0; min-width:0;">
+            <input type="text" id="chat-input" placeholder="메시지를 입력하세요" maxlength="200" style="flex:1; min-width:0;">
             <button onclick="sendChatMessage()" style="white-space:nowrap;">전송</button>
         </div>
     </div>
@@ -327,6 +339,7 @@
 
     let isSpectator = false;
     let cachedP1Nick = 'P1';
+    let currentSpectatorNicknames = [];
     let cachedP2Nick = 'P2';
     let currentRoom = null;
     let myLastSelectedCard = null;
@@ -366,11 +379,17 @@
         return val || null;
     }
 
+    function scrollChatToBottom(containerEl) {
+        requestAnimationFrame(() => {
+            containerEl.scrollTop = containerEl.scrollHeight;
+        });
+    }
+
     function renderChatList(containerEl, list) {
         containerEl.innerHTML = '';
         const myNick = currentChatNickname();
         list.forEach((entry) => appendChatBubble(containerEl, entry, myNick));
-        containerEl.scrollTop = containerEl.scrollHeight;
+        scrollChatToBottom(containerEl);
     }
 
     function appendChatBubble(containerEl, entry, myNick) {
@@ -396,6 +415,14 @@
         const title = document.getElementById('chat-panel-title');
         const messagesEl = document.getElementById('chat-messages');
 
+        // 열 때마다 "말하기" 버튼부터 보이도록 초기화 (바로 키보드가 뜨지 않게)
+        document.getElementById('chat-speak-btn').classList.remove('hidden');
+        document.getElementById('chat-input-row').classList.add('hidden');
+
+        // 먼저 패널을 보이게 한 뒤에 메시지를 그려야 스크롤 높이 계산이 정확함
+        // (display:none 상태에서는 scrollHeight가 제대로 계산되지 않아 맨 아래로 안 내려감)
+        panel.classList.remove('hidden');
+
         if (context === 'lobby') {
             title.innerText = '💬 로비 채팅';
             renderChatList(messagesEl, lobbyChatMessages);
@@ -405,12 +432,6 @@
             renderChatList(messagesEl, roomChatMessages);
             setRoomChatUnread(false);
         }
-
-        // 열 때마다 "말하기" 버튼부터 보이도록 초기화 (바로 키보드가 뜨지 않게)
-        document.getElementById('chat-speak-btn').classList.remove('hidden');
-        document.getElementById('chat-input-row').classList.add('hidden');
-
-        panel.classList.remove('hidden');
     }
 
     function revealChatInput() {
@@ -481,9 +502,9 @@
     socket.on('lobbyChatMessage', (entry) => {
         lobbyChatMessages.push(entry);
         if (chatContext === 'lobby') {
-            appendChatBubble(document.getElementById('chat-messages'), entry, currentChatNickname());
             const el = document.getElementById('chat-messages');
-            el.scrollTop = el.scrollHeight;
+            appendChatBubble(el, entry, currentChatNickname());
+            scrollChatToBottom(el);
         } else {
             setLobbyChatUnread(true);
         }
@@ -505,9 +526,9 @@
         document.getElementById('room-chat-ticker-text').innerText = `${entry.nickname}: ${entry.message}`;
 
         if (chatContext === 'room') {
-            appendChatBubble(document.getElementById('chat-messages'), entry, currentChatNickname());
             const el = document.getElementById('chat-messages');
-            el.scrollTop = el.scrollHeight;
+            appendChatBubble(el, entry, currentChatNickname());
+            scrollChatToBottom(el);
         } else {
             setRoomChatUnread(true);
         }
@@ -555,6 +576,23 @@
                 gain.gain.setValueAtTime(0.1, now);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
                 osc.start(now); osc.stop(now + 0.25);
+            } else if (type === 'gameDraw') {
+                // 게임 최종 무승부 전용 (라운드 무승부 소리와 구분되는, 조금 더 확실한 '삐-삐' 톤)
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                gain.gain.setValueAtTime(0.16, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+                osc.start(now); osc.stop(now + 0.28);
+
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(440, now + 0.34);
+                gain2.gain.setValueAtTime(0.16, now + 0.34);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.62);
+                osc2.start(now + 0.34); osc2.stop(now + 0.62);
             } else if (type === 'doorbell') {
                 // '딩' (높은 음)
                 osc.type = 'sine';
@@ -785,6 +823,31 @@
         document.getElementById('rules-modal').classList.add('hidden');
     }
 
+    function openSpectatorListModal() {
+        const content = document.getElementById('spectator-list-content');
+        content.innerHTML = '';
+        if (currentSpectatorNicknames.length === 0) {
+            content.innerHTML = '<div style="color:#94a3b8; text-align:center; padding:10px;">아직 관전자가 없습니다.</div>';
+        } else {
+            currentSpectatorNicknames.forEach((nick) => {
+                const row = document.createElement('div');
+                row.style.cssText = 'padding:6px 10px; background:#1e293b; border:1px solid var(--border); border-radius:6px;';
+                row.innerText = `👤 ${nick}`;
+                content.appendChild(row);
+            });
+        }
+        document.getElementById('spectator-list-modal').classList.remove('hidden');
+    }
+
+    function closeSpectatorListModal() {
+        document.getElementById('spectator-list-modal').classList.add('hidden');
+    }
+
+    function becomePlayer() {
+        if (!currentRoom) return;
+        socket.emit('becomePlayer', { roomCode: currentRoom });
+    }
+
     function renderRoomList(list) {
         const box = document.getElementById('room-list-box');
         box.innerHTML = '';
@@ -970,6 +1033,12 @@
             hasCountedDown = false; // 다음 게임 시작 때 카운트다운이 다시 동작하도록 초기화
         }
 
+        // 서버가 게임을 초기화(gameOver:false)했는데 게임종료 화면이 계속 떠서 뒤 상태(상대방 나감/대기 등)를 가리는 문제 방지
+        if (!room.gameOver && isGameOver) {
+            document.getElementById('game-over-box').classList.add('hidden');
+            isGameOver = false;
+        }
+
         const p1Nick = room.nicknames ? (room.nicknames[room.players[0]] || 'P1') : 'P1';
         const p2Nick = room.nicknames ? (room.nicknames[room.players[1]] || 'P2') : 'P2';
         cachedP1Nick = p1Nick;
@@ -977,6 +1046,15 @@
 
         const spectatorCount = (room.spectators || []).length;
         document.getElementById('spectator-count-badge').innerText = `👀 ${spectatorCount}명`;
+        currentSpectatorNicknames = (room.spectators || []).map((id) => (room.nicknames ? (room.nicknames[id] || '익명') : '익명'));
+
+        // 관전자에게 빈 자리가 있으면(게임 시작 전) 바로 플레이어로 참가할 수 있는 버튼 표시
+        const becomePlayerBtn = document.getElementById('become-player-btn');
+        if (isSpectator && room.players.length < 2 && room.turn === null) {
+            becomePlayerBtn.classList.remove('hidden');
+        } else {
+            becomePlayerBtn.classList.add('hidden');
+        }
 
         if (isSpectator) {
             document.getElementById('my-card-label').innerHTML = `${boldNick(p1Nick)} 낸 카드`;
@@ -1293,12 +1371,12 @@
 
         if (isSpectator) {
             const winnerNick = (winner === 'p1') ? cachedP1Nick : (winner === 'p2' ? cachedP2Nick : null);
-            playSound(isDraw ? 'draw' : 'win');
+            playSound(isDraw ? 'gameDraw' : 'win');
             finalTitle = isDraw ? "🤝 무승부" : `🏆 ${winnerNick}님이 이겼습니다!`;
             finalDesc = isDraw ? "동점입니다. 팽팽한 승부였네요!" : "관전해주셔서 감사합니다!";
         } else {
             const isGameWin = (winner === myRole);
-            playSound(isGameWin ? 'win' : (isDraw ? 'draw' : 'lose'));
+            playSound(isGameWin ? 'win' : (isDraw ? 'gameDraw' : 'lose'));
             finalTitle = isGameWin ? "🏆 최종 승리!" : (isDraw ? "🤝 무승부" : "💀 패배");
             finalDesc = isGameWin ? "축하합니다! 상대를 압도하셨습니다." : (isDraw ? "동점입니다. 팽팽한 승부였네요!" : "아쉽습니다. 다음 기회에 도전해보세요!");
         }
