@@ -144,13 +144,15 @@
         body.excel-theme .emoji-btn { background:#ffffff; border-color:#c7c7c7; }
         body.excel-theme details summary { color:#217346; }
         body.excel-theme #rules-modal > div { background:#ffffff; color:#1b1b1b; }
+        body.excel-theme .count-white { color:#ffffff; text-shadow: -1px -1px 0 #217346, 1px -1px 0 #217346, -1px 1px 0 #217346, 1px 1px 0 #217346; }
+        body.excel-theme .count-black { color:#000000; text-shadow: -1px -1px 0 #d3d6da, 1px -1px 0 #d3d6da, -1px 1px 0 #d3d6da, 1px 1px 0 #d3d6da; }
 
     </style>
 </head>
 <body>
 
 <button id="fullscreen-btn" class="fullscreen-btn" onclick="toggleFullscreen()" title="전체화면">⛶</button>
-<button id="theme-toggle-btn" class="fullscreen-btn" onclick="toggleExcelMode()" title="엑셀모드 전환" style="top:auto; bottom:8px;">📊</button>
+<button id="theme-toggle-btn" class="fullscreen-btn" onclick="toggleExcelMode()" title="엑셀모드 전환" style="top:auto; bottom:8px; right:auto; left:8px;">📊</button>
 
 <div class="container">
     <div id="fake-excel-bar" style="display:none;">
@@ -268,7 +270,7 @@
     </div>
 </div>
 
-<div class="version-badge">ver.32</div>
+<div class="version-badge">ver.33</div>
 
 <div id="rules-modal" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px;">
     <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; max-width:420px; width:100%; max-height:80vh; overflow-y:auto;">
