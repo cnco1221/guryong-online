@@ -39,6 +39,15 @@ function touchActivity(room) {
     room.lastActivity = Date.now();
 }
 
+// 플레이어가 나가서 배열 순서가 바뀌었을 때, 남은 플레이어들에게 역할(role)을 다시 알려줌
+// (그렇지 않으면 클라이언트의 myRole이 예전 값으로 남아 방장 승계가 화면에 반영되지 않음)
+function resyncPlayerRoles(room) {
+    room.players.forEach((socketId, idx) => {
+        const role = idx === 0 ? 'p1' : 'p2';
+        io.to(socketId).emit('assignedRole', role);
+    });
+}
+
 function createRoomEntry(roomCode) {
     rooms[roomCode] = {
         players: [],
@@ -258,6 +267,36 @@ io.on('connection', (socket) => {
     });
     // ===== 게임 준비 / 시작 끝 =====
 
+    // 관전자가 빈 자리(게임 시작 전)에 바로 플레이어로 참가
+    socket.on('becomePlayer', ({ roomCode } = {}) => {
+        if (!roomCode || typeof roomCode !== 'string') return;
+        roomCode = roomCode.trim().toUpperCase();
+        const room = rooms[roomCode];
+        if (!room || !room.spectators) return;
+
+        const specIdx = room.spectators.indexOf(socket.id);
+        if (specIdx === -1) return; // 이 방의 관전자가 아니면 무시
+
+        if (room.players.length >= 2) {
+            socket.emit('actionError', '빈 자리가 없습니다.');
+            return;
+        }
+        if (room.turn !== null) {
+            socket.emit('actionError', '게임이 진행 중이라 지금은 참가할 수 없습니다.');
+            return;
+        }
+
+        room.spectators.splice(specIdx, 1);
+        room.players.push(socket.id);
+        socket.data.isSpectator = false;
+        room.guestReady = false; // 새로운 구성 -> 준비 상태 초기화
+        touchActivity(room);
+
+        resyncPlayerRoles(room); // 새로 합류한 사람 포함, 전체 role 재배정
+        io.to(roomCode).emit('updateState', room);
+        broadcastRoomList();
+    });
+
     socket.on('leaveSpectate', ({ roomCode } = {}, callback) => {
         if (!roomCode || typeof roomCode !== 'string') {
             if (typeof callback === 'function') callback();
@@ -313,9 +352,15 @@ io.on('connection', (socket) => {
         room.guestReady = false; // 인원 변동 -> 다음 게스트를 위해 준비 상태 초기화
         socket.leave(roomCode);
 
-        if (room.players.length === 0 && (!room.spectators || room.spectators.length === 0)) {
+        if (room.players.length === 0) {
+            // 플레이어가 모두 나감 -> 방을 종료. 관전자가 있다면 방 목록으로 돌려보냄
+            if (room.spectators && room.spectators.length > 0) {
+                io.to(roomCode).emit('errorMsg', '플레이어가 모두 나가 방이 종료되었습니다.');
+            }
             delete rooms[roomCode];
         } else {
+            // 플레이어가 남아있으면 방은 그대로 유지, 조용히 화면만 갱신 (알림/새로고침 없음)
+            resyncPlayerRoles(room); // 남은 플레이어의 역할(방장 승계 등)을 다시 알려줌
             io.to(roomCode).emit('updateState', room);
         }
         broadcastRoomList();
@@ -438,16 +483,27 @@ io.on('connection', (socket) => {
 
             const index = room.players.indexOf(socket.id);
             if (index !== -1) {
+                const wasActive = (room.turn !== null); // 연결이 끊기기 전에 게임이 실제로 진행 중이었는지
                 room.players.splice(index, 1);
                 delete room.nicknames[socket.id];
                 room.guestReady = false; // 인원 변동 -> 다음 게스트를 위해 준비 상태 초기화
                 changed = true;
-                if (room.players.length === 0 && (!room.spectators || room.spectators.length === 0)) {
+
+                if (room.players.length === 0) {
+                    // 플레이어가 모두 사라짐 -> 방을 종료. 관전자가 있다면 방 목록으로 돌려보냄
+                    if (room.spectators && room.spectators.length > 0) {
+                        io.to(roomCode).emit('errorMsg', '플레이어가 모두 나가 방이 종료되었습니다.');
+                    }
                     delete rooms[roomCode];
                     broadcastRoomList();
                     continue;
                 } else {
-                    io.to(roomCode).emit('errorMsg', '상대방이 나갔습니다.');
+                    resyncPlayerRoles(room); // 남은 플레이어의 역할(방장 승계 등)을 다시 알려줌
+                    if (wasActive) {
+                        // 게임이 실제로 진행 중이었는데 상대가 갑자기 끊긴 경우에만 알림
+                        io.to(roomCode).emit('errorMsg', '상대방이 나갔습니다.');
+                    }
+                    io.to(roomCode).emit('updateState', room);
                 }
             }
 
@@ -457,11 +513,7 @@ io.on('connection', (socket) => {
                     room.spectators.splice(specIndex, 1);
                     delete room.nicknames[socket.id];
                     changed = true;
-                    if (room.players.length === 0 && room.spectators.length === 0) {
-                        delete rooms[roomCode];
-                        broadcastRoomList();
-                        continue;
-                    }
+                    io.to(roomCode).emit('updateState', room);
                 }
             }
 
