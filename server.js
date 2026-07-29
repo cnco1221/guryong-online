@@ -14,6 +14,7 @@ const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15분 동안 진행 없으면 자
 const INACTIVITY_CHECK_INTERVAL_MS = 30 * 1000; // 30초마다 점검
 const CHAT_LIMIT = 200; // 채팅 기록 최대 보관 개수
 const CHAT_MESSAGE_MAX_LEN = 200;
+const GAME_OVER_DISPLAY_MS = 5000; // 게임 종료(승/패/무) 결과 화면을 보여주는 시간
 
 let lobbyChat = []; // 방 목록(로비) 공용 채팅 - 서버 실행 중 유지
 const connectedNicknames = {}; // socket.id -> 닉네임(설정 전이면 null)
@@ -431,21 +432,24 @@ io.on('connection', (socket) => {
                     if (!rooms[roomCode]) return; // 그 사이 방이 다른 사유로 사라졌을 수 있음
                     io.to(roomCode).emit('gameOver', { winner: finalWinner, history: room.history });
 
-                    // 방을 삭제하지 않고 다음 게임을 위해 초기화 -> 같은 방에서 바로 재대결 가능
-                    room.hands = {
-                        p1: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-                        p2: [1, 2, 3, 4, 5, 6, 7, 8, 9]
-                    };
-                    room.selected = { p1: null, p2: null };
-                    room.wins = { p1: 0, p2: 0 };
-                    room.history = [];
-                    room.turn = null;
-                    room.gameOver = false;
-                    room.guestReady = false; // 다음 게임을 위해 게스트는 다시 준비해야 함
-                    touchActivity(room);
+                    // 결과 화면을 몇 초간 보여준 뒤에 다음 게임을 위해 초기화 -> 같은 방에서 바로 재대결 가능
+                    setTimeout(() => {
+                        if (!rooms[roomCode]) return;
+                        room.hands = {
+                            p1: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+                            p2: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+                        };
+                        room.selected = { p1: null, p2: null };
+                        room.wins = { p1: 0, p2: 0 };
+                        room.history = [];
+                        room.turn = null;
+                        room.gameOver = false;
+                        room.guestReady = false; // 다음 게임을 위해 게스트는 다시 준비해야 함
+                        touchActivity(room);
 
-                    io.to(roomCode).emit('updateState', room);
-                    broadcastRoomList();
+                        io.to(roomCode).emit('updateState', room);
+                        broadcastRoomList();
+                    }, GAME_OVER_DISPLAY_MS);
                 }, 1000);
             } else {
                 // 라운드 승자가 다음 라운드 선공 (무승부 시 기존 선공 유지)
